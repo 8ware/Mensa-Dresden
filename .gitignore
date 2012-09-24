@@ -1,3 +1,16 @@
+#
+# general
+#
+*.bak
+
+#
+# vim
+#
+.*.sw*
+
+#
+# github
+#
 blib/
 .build/
 _build/
@@ -13,3 +26,4 @@ META.yml
 MYMETA.yml
 nytprof.out
 pm_to_blib
+
