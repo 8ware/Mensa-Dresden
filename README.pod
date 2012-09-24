@@ -2,7 +2,7 @@
 
 =head1 NAME
 
-Mensa-Dresden - Perl interface to receive offerings of Dresden's canteens
+Mensa::Dresden - Perl interface to receive offerings of Dresden's canteens
 
 =cut
 
