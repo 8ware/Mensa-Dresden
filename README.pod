@@ -4,5 +4,30 @@
 
 Mensa::Dresden - Perl interface to receive offerings of Dresden's canteens
 
+=head1 INSTALLATION
+
+To install this module type the following:
+
+  perl Makefile.PL
+  make
+  make test
+  make install
+
+=head1 DEPENDENCIES
+
+The modules and the script require these other modules and libraries:
+
+  XML::LibXML
+  XML::LibXSLT
+  YAML::Tiny
+
+=head1 COPYRIGHT AND LICENCE
+
+Copyright (C) 2012 by 8ware
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself, either Perl version 5.14.2 or,
+at your option, any later version of Perl 5 you may have available.
+
 =cut
 

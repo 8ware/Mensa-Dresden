@@ -1,0 +1,155 @@
+#! /usr/local/bin/perl -w
+
+use strict;
+use warnings;
+
+use feature 'say';
+use encoding 'utf8';
+
+use lib '/media/Share/development/perl/Mensa-Dresden/lib';
+
+use Getopt::Long;
+use Mensa::Dresden ':filter';
+#use Term::Prompt 'get_width';
+use YAML::Tiny 'LoadFile';
+
+# execute: perl -I lib mensa.pl --filter . --location "Dresden, Mensa Siedepunkt" --location "Dresden, Mensa Blau"
+
+use subs qw(load_config);
+
+my @canteens;
+my @filters;
+my @name_filters;
+my @ingredient_filters;
+my $open_website = -1;
+my $show_all = 0;
+
+load_config();
+
+GetOptions(
+	'canteen|c=s@' => \@canteens,
+	'filter-name|n=s@' => \@name_filters,
+	'filter-ingredient|i=s@' => \@ingredient_filters,
+	'open-website:i' => \$open_website,
+	'show-all' => \$show_all,
+	debug => \$Mensa::Dresden::Filter::DEBUG
+);
+
+{
+	my %tmp = map { $_ => 1 } @canteens;
+	@canteens = keys %tmp;
+}
+
+for (@name_filters) {
+	my $invert = s/^~\s*//;
+	push @filters, create_filter(NAME, $_, $invert);
+}
+
+for (@ingredient_filters) {
+	my $invert = s/^~\s*//;
+	push @filters, create_filter(INGREDIENTS, $_, $invert);
+}
+
+#if ($open_website > 0) {
+#	system "firefox -new-tab $Mensa::Dresden::URL";
+#}
+
+if ($show_all) {
+	@filters = ();
+}
+
+#for (@filters) {
+#	say $_->{regex};
+#}
+
+for my $name (@canteens) {
+	my $mensa = Mensa::Dresden->new($name, @filters);
+	my @meals = $mensa->get_offering();
+	if (@meals) {
+		say "[ $name ]\n";
+		say $_->name for @meals;
+		print "\n";
+	}
+}
+
+#for (@locations) {
+#	my ($city, $location) = split /,\s+/;
+#	if (defined $locations{$city}) {
+#		push $locations{$city}, $location
+#				unless $location ~~ $locations{$city};
+#	} else {
+#		$locations{$city} = [ $location ];
+#	}
+#}
+
+$~ = 'MEALS';
+my ($name, $url);
+
+#while (my ($city, $mensas) = each %locations) {
+#	$city =~ s/\s+//g;
+#	for my $location (@{$mensas}) {
+#		my $mensa = Mensa->new($city, $location);
+#		my @meals = $mensa->get_offering(@filters);
+#		next unless @meals;
+#		my $identifier = uc ($city) . "[ $location ]";
+#		say $identifier . "\n" . ('=' x length $identifier) . "\n";
+#		for my $meal (@meals) {
+#			$name = $meal->get_name();
+#			$url = $meal->get_url();
+#			write;
+#		}
+#		say "\n";
+#	}
+#}
+
+=head2 CONFIGURATION
+
+To configure the mensa-script and avoid of passing thousands of options
+to it, the script can load configurations from a YAML-file. Simply place
+a new file in your home directory and name it C<.mensarc>. The script
+will load it automatically. The file must have the following structure:
+
+  --- # canteens
+  - name #1
+  - name #2
+  - ...
+
+  --- # filters
+  name:
+    - regular expression #1
+    - ! regular expression #2
+  ingredients:
+    - regular expression #3
+
+The first section lists all mensas which are requested for their offering.
+The second section contains all filters which were applied to each meal to
+determine if it's printed or not. The questionmark in front of a regex
+indicates that it must not match the expression.
+
+=cut
+
+sub load_config() {
+	my $path = "$ENV{HOME}/.mensarc";
+	return unless -f $path;
+
+	my ($canteens, $filters) = LoadFile($path);
+	@canteens = @{$canteens} if defined $canteens;
+
+	return unless defined $filters;
+	while (my ($what, $regexes) = each $filters) {
+		for my $regex (@{$regexes}) {
+			my $invert = $regex =~ s/^~\s*//;
+			push @filters, create_filter($what, $regex, $invert);
+		}
+	}
+}
+
+#say 'x' x get_width();
+
+format MEALS =
+@<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<         @<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+$name,                                                                                                                                       $url
+.
+
+1;
+
