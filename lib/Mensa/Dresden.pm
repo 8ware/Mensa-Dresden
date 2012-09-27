@@ -283,7 +283,7 @@ to get this done.
 sub create_filter($$;$) {
 	my ($criterion, $regex, $invert) = @_;
 	return Mensa::Dresden::Filter->new(
-		$criterion, qr/$regex/i, $invert || 0
+		$criterion, $regex, $invert
 	);
 }
 

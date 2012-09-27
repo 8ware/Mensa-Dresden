@@ -30,10 +30,14 @@ $Mensa::Dresden::URL = "file://$t_dir/res/";
 
 my $filter = Mensa::Dresden::Filter->new('ingredients', qr/kein Fleisch/, 1);
 
-my $mensa = Mensa::Dresden->new('Alte Mensa', $filter);
+my $mensa = Mensa::Dresden->new('Alte Mensa');#, $filter);
 my @meals = $mensa->get_offering(0, 0); # TODO test for (0, 0)-param
 
 for (@meals) {
-	say $_->get_name();
+	say $_->name();
+	my @ingredients = $_->ingredients;
+	@ingredients = '-' unless @ingredients;
+	local $" = ', ';
+	say "> @ingredients\n";
 }
 

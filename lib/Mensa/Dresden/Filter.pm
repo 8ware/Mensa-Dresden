@@ -79,16 +79,19 @@ use constant {
 =item B<new>
 
 Accepts the filter-criterion (e.g. C<name> or C<ingredients>), a regular
-expression and optionally the inversion-flag in that order.
+expression and optionally the inversion-flag in that order (see constants).
 
 =cut
 
 sub new {
 	my $class = shift;
+	my $criterion = shift;
+	my $regex = shift;
+	my $inverse = shift;
 	my $self = {
-		criterion => shift,
-		regex => shift,
-		inverse => shift || 0
+		criterion => $criterion,
+		regex => qr/$regex/i,
+		inverse => $inverse || 0
 	};
 	return bless $self, $class;
 }
@@ -109,7 +112,7 @@ sub pass($) {
 	say uc ($criterion) . "[ " . ($inverse ? '!' : '=') . "~ $regex ]" if $DEBUG;
 	my $result = 0;
 	for ($meal->$criterion) {
-		$result |= /$regex/i;
+		$result |= /$regex/;
 		say "$_ =~ /$regex/i = " . m/$regex/i . " RES[ $result ]" if $DEBUG;
 		say "$_ =~ /".qr/rind/i."/i" if $DEBUG;
 	}
