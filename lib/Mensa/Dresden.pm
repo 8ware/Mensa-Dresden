@@ -164,7 +164,7 @@ our %MENSAS = (
 );
 
 
-use subs qw(get_url fetch_html load_stylesheet);
+use subs qw(get_url fetch_html load_stylesheet filter);
 
 =head2 METHODS
 
@@ -184,7 +184,8 @@ sub new {
 	my @mensas = keys %MENSAS;
 	return bless {
 		name => $mensa,
-		filters => \@filters
+		p_filters => [ grep { $_->is_positive } @filters ],
+		n_filters => [ grep { $_->is_negative } @filters ]
 	}, $class if $mensa ~~ @mensas;
 	croak("Unknown mensa: $mensa");
 }
@@ -199,28 +200,42 @@ parameter is omitted.
 
 =cut
 
+# The filter mechanism works as follows:
+# 1. apply all positive filters to all meals,
+#    if at least one matches add the meal
+# 2. apply all negative filters to the already filtered meals,
+#    if at least one does not match remove the meal
+# 3. if no meals were left apply all negative filter to all meals,
+#    if all match add the meal
+# 4. if still no meals are left, return all meals
+
+use constant {
+	positive => 1,
+	negative => 0
+};
+
 sub get_offering(;$$) {
 	my $self = shift;
 	my $day = defined $_[0] ? shift : (localtime time)[6];
 	my $week = defined $_[0] ? shift : 0;
-	my @filters = @{ $self->{filters} };
+	my @positive_filters = @{ $self->{p_filters} };
+	my @negative_filters = @{ $self->{n_filters} };
 	my $stylesheet = load_stylesheet();
 	my $url = get_url($week, $day);
 	my $html = fetch_html($url);
-	my $offering = $stylesheet->transform(
-		$html,
+	my $offering = $stylesheet->transform($html,
 #		XML::LibXSLT::xpath_to_string(base => $URL),
-		XML::LibXSLT::xpath_to_string(base => ""),
+#		XML::LibXSLT::xpath_to_string(base => ""),
 		XML::LibXSLT::xpath_to_string(name => $self->{name})
 	);
 	my @meals;
 	for ($offering->getElementsByTagName('meal')) {
 #		$_->setAttribute('url', $URL . $_->getAttribute('url'));
 		my $meal = Mensa::Dresden::Meal->new($_);
-		push @meals, $meal
-				if not @filters or grep { $_->pass($meal) } @filters;
+		push @meals, $meal;
 	}
-	return @meals;
+	return @meals unless @positive_filters or @negative_filters;
+	return $self->filter_meals(@meals);
 }
 
 sub get_url($$) {
@@ -256,6 +271,63 @@ sub load_stylesheet() {
 	return $stylesheet;
 }
 
+sub filter_meals(@) {
+	my $self = shift;
+	my @meals = @_;
+#	say ">>>> filters available";
+	my @filtered_meals;
+	# filter with PositiveFilters
+	@filtered_meals = $self->filter(positive, @meals);
+	@filtered_meals = $self->filter(negative, @filtered_meals);
+	return @filtered_meals if @filtered_meals;
+#	say ">>>> no positive filters have matched";
+	@filtered_meals = $self->filter(negative, @meals);
+	# filter with NegativeFilters
+	return @filtered_meals if @filtered_meals;
+#	say ">>>> no negative filters have matched";
+	return @meals;
+}
+
+sub filter($@) {
+	my $self = shift;
+	my $positive = shift;
+	my @meals = @_;
+	my @filters = @{ $self->{($positive ? 'p' : 'n').'_filters'} };
+	return @meals unless @filters;
+	my @filtered;
+	for my $meal (@meals) {
+		my $matches = grep { $_->pass($meal) } @filters;
+		push @filtered, $meal if $positive and $matches or $matches == @filters;
+	}
+	return @filtered;
+}
+
+sub add_filter(@) {
+	my $self = shift;
+	for (@_) {
+		carp("Not a filter: $_") and next
+				unless /^Mensa::Dresden::Filter=HASH\(0x[\da-f]{7}\)/;
+		my $filter_type = ($_->is_positive ? 'p' : 'n') . '_filters';
+		push $self->{ $filter_type }, $_;
+	}
+}
+
+sub create_filter {
+	my $self = shift;
+	my $filter;
+	if ($self =~ /^Mensa::Dresden=HASH\(0x[\da-f]{7}\)/) {
+		$filter = create_filter(@_);
+		my $filter_type = ($filter->is_positive ? 'p' : 'n') . '_filters';
+		push $self->{ $filter_type }, $filter;
+	} else {
+		my ($criterion, $regex, $invert) = ($self, @_);
+		$filter = Mensa::Dresden::Filter->new(
+				$criterion, qr/$regex/i, $invert
+		);
+	}
+	return $filter;
+}
+
 =item B<get_name>
 
 Returns the name of the canteen.
@@ -280,12 +352,12 @@ to get this done.
 
 =cut
 
-sub create_filter($$;$) {
-	my ($criterion, $regex, $invert) = @_;
-	return Mensa::Dresden::Filter->new(
-		$criterion, $regex, $invert
-	);
-}
+#sub create_filter($$;$) {
+#	my ($criterion, $regex, $invert) = @_;
+#	return Mensa::Dresden::Filter->new(
+#		$criterion, $regex, $invert
+#	);
+#}
 
 =back
 
@@ -330,52 +402,53 @@ at your option, any later version of Perl 5 you may have available.
 __DATA__
 <?xml version="1.0"?>
 <xsl:stylesheet version="1.0"
-	xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
-	xmlns:fn="http://www.w3.org/2005/xpath-functions"
-	xmlns:x="http://www.w3.org/1999/xhtml">
-	<xsl:output method="xml" indent="yes" encoding="UTF-8" omit-xml-declaration="no"/>
+    xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+    xmlns:fn="http://www.w3.org/2005/xpath-functions"
+    xmlns:x="http://www.w3.org/1999/xhtml">
+    <xsl:output method="xml" indent="yes" encoding="UTF-8" omit-xml-declaration="no"/>
 
-	<xsl:param name="base"/>
-	<xsl:param name="name"/>
+  <!--xsl:param name="base"/-->
+  <xsl:param name="name"/>
 
-	<xsl:template match="/">
-		<xsl:element name="offering">
-			<xsl:for-each select="//div[@id='spalterechtsnebenmenue']/table[@class='speiseplan'
-						and thead/tr/th[@class='text']=$name]">
-				<xsl:element name="mensa">
-					<xsl:attribute name="name">
-						<xsl:value-of select="thead/tr/th[@class='text']"/>
-					</xsl:attribute>
-					<xsl:for-each select="tbody/tr">
-						<!--xsl:if test="not(fn:empty(td[@class='text']/a))"-->
-						<xsl:if test="string-length(td[@class='text']/a/@href) > 0">
-							<xsl:element name="meal">
-								<xsl:attribute name="url">
-									<xsl:value-of select="concat($base, td[@class='text']/a/@href)"/>
-									<!--xsl:value-of select="resolve-uri(td[@class='text']/a/@href, $base)"/-->
-								</xsl:attribute>
-								<xsl:element name="name">
-									<xsl:value-of select="td[@class='text']/a"/>
-								</xsl:element>
-								<xsl:for-each select="td[@class='stoffe']/a/img">
-									<xsl:element name="ingredient">
-										<xsl:choose>
-											<xsl:when test="contains(@title, 'vegan')">
-												<xsl:value-of select="substring(@title, 10)"/>
-											</xsl:when>
-											<xsl:otherwise>
-												<xsl:value-of select="substring(@title, 14)"/>
-											</xsl:otherwise>
-										</xsl:choose>
-									</xsl:element>
-								</xsl:for-each>
-							</xsl:element>
-						</xsl:if>
-					</xsl:for-each>
-				</xsl:element>
-			</xsl:for-each>
-		</xsl:element>
-	</xsl:template>
+  <xsl:template match="/">
+    <xsl:element name="offering">
+      <xsl:for-each select="//div[@id='spalterechtsnebenmenue']/table[@class='speiseplan'
+          and thead/tr/th[@class='text']=$name]">
+        <xsl:element name="mensa">
+          <xsl:attribute name="name">
+            <xsl:value-of select="thead/tr/th[@class='text']"/>
+          </xsl:attribute>
+          <xsl:for-each select="tbody/tr">
+            <!--xsl:if test="not(fn:empty(td[@class='text']/a))"-->
+            <xsl:if test="string-length(td[@class='text']/a/@href) > 0">
+              <xsl:element name="meal">
+                <xsl:attribute name="url">
+                  <!--xsl:value-of select="concat($base, td[@class='text']/a/@href)"/-->
+                  <xsl:value-of select="td[@class='text']/a/@href"/>
+                  <!--xsl:value-of select="resolve-uri(td[@class='text']/a/@href, $base)"/-->
+                </xsl:attribute>
+                <xsl:element name="name">
+                  <xsl:value-of select="td[@class='text']/a"/>
+                </xsl:element>
+                <xsl:for-each select="td[@class='stoffe']/a/img">
+                  <xsl:element name="ingredient">
+                    <xsl:choose>
+                      <xsl:when test="contains(@title, 'vegan')">
+                        <xsl:value-of select="substring(@title, 10)"/>
+                      </xsl:when>
+                      <xsl:otherwise>
+                        <xsl:value-of select="substring(@title, 14)"/>
+                      </xsl:otherwise>
+                    </xsl:choose>
+                  </xsl:element>
+                </xsl:for-each>
+              </xsl:element>
+            </xsl:if>
+          </xsl:for-each>
+        </xsl:element>
+      </xsl:for-each>
+    </xsl:element>
+  </xsl:template>
 
 </xsl:stylesheet>
 

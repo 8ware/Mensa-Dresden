@@ -136,6 +136,18 @@ sub ingredients() {
 
 =cut
 
+sub to_string() {
+	my $self = shift;
+	my $string = '';
+	$string .= $self->name . "\n";
+	my @ingredients = $self->ingredients();
+	@ingredients = '-' unless @ingredients;
+	local $" = ', ';
+	$string .= "> @ingredients\n";
+	$string .= $self->url;
+	return $string;
+}
+
 
 1;
 

@@ -120,6 +120,20 @@ sub pass($) {
 	return $inverse ^ $result;
 }
 
+=item B<is_negative>
+
+=cut
+
+sub is_negative() {
+	my $self = shift;
+	return $self->{inverse};
+}
+
+sub is_positive() {
+	my $self = shift;
+	return not $self->{inverse};
+}
+
 =back
 
 =cut
