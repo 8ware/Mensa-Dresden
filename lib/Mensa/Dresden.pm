@@ -204,7 +204,7 @@ sub new {
 	my @mensas = keys %MENSAS;
 	return bless {
 		name => $mensa,
-		p_filters => [ grep { $_->is_positive } @filters ],
+		p_filters => [ grep { not $_->is_negative } @filters ],
 		n_filters => [ grep { $_->is_negative } @filters ]
 	}, $class if $mensa ~~ @mensas;
 	croak("Unknown mensa: $mensa");

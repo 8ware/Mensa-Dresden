@@ -29,17 +29,18 @@ $Mensa::Dresden::URL = "file://$t_dir/res/";
 my $mensa = Mensa::Dresden->new('Alte Mensa');
 my @meals;
 
-$mensa->create_filter('name', qr/steak/i);
+my $steak_filter = $mensa->create_filter('name', qr/steak/i);
 @meals = $mensa->get_offering(0, 0);
-is(@meals, 1, "test steak-filter");
+is(@meals, 2, "test steak-filter");
 $mensa->reset_filters();
 
-$mensa->create_filter('name', qr/frikadelle/i);
+my $meatball_filter = $mensa->create_filter('name', qr/frikadelle/i);
 @meals = $mensa->get_offering(1, 1);
 is(@meals, 1, "find tofu-meatball");
-$mensa->create_filter('name', qr/tofu/i, NEGATIVE);
+my $antitofu_filter = $mensa->create_filter('name', qr/tofu/i, NEGATIVE);
 @meals = $mensa->get_offering(1, 1);
 ok(@meals > 1, "filter out tofu-meatball, get all other");
+$mensa->reset_filters();
 
 exit;
 

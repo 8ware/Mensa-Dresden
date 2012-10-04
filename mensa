@@ -1,4 +1,4 @@
-#! /usr/local/bin/perl -w
+#! /usr/local/bin/perl
 
 use strict;
 use warnings;
@@ -8,12 +8,17 @@ use encoding 'utf8';
 
 use lib '/media/Share/development/perl/Mensa-Dresden/lib';
 
-use Getopt::Long;
-use Mensa::Dresden ':filter';
-#use Term::Prompt 'get_width';
-use YAML::Tiny 'LoadFile';
+=head1 NAME
 
-# execute: perl -I lib mensa.pl --filter . --location "Dresden, Mensa Siedepunkt" --location "Dresden, Mensa Blau"
+mensa - little script to check the canteen's offerings in Dresden
+
+=head1 DESCRIPTION
+
+=cut
+
+use Getopt::Long;
+use Mensa::Dresden ':all';
+use YAML::Tiny 'LoadFile';
 
 use subs qw(load_config);
 
@@ -21,86 +26,55 @@ my @canteens;
 my @filters;
 my @name_filters;
 my @ingredient_filters;
-my $open_website = -1;
+my $tomorrow = 0;
 my $show_all = 0;
+my $verbose = 0;
 
 load_config();
 
+=head2 OPTIONS
+
+=over 4
+
+=item B<-c>, B<--canteen>
+
+=back
+
+=cut
+
 GetOptions(
 	'canteen|c=s@' => \@canteens,
-	'filter-name|n=s@' => \@name_filters,
-	'filter-ingredient|i=s@' => \@ingredient_filters,
-	'open-website:i' => \$open_website,
+	'filter-name|name|n=s@' => \@name_filters,
+	'filter-ingredient|ingredient|i=s@' => \@ingredient_filters,
+	'tomorrow' => \$tomorrow,
 	'show-all' => \$show_all,
-	debug => \$Mensa::Dresden::Filter::DEBUG
+	'verbose' => \$verbose
 );
 
-{
+{	# remove dublicated canteens
 	my %tmp = map { $_ => 1 } @canteens;
 	@canteens = keys %tmp;
 }
 
-for (@name_filters) {
-	my $invert = s/^~\s*//;
-	push @filters, create_filter(NAME, $_, $invert);
-}
+push @filters, map { create_filter(NAME, $_, s/^~\s*//) } @name_filters;
+push @filters, map {
+	create_filter(INGREDIENTS, $_, s/^~\s*//) } @ingredient_filters;
 
-for (@ingredient_filters) {
-	my $invert = s/^~\s*//;
-	push @filters, create_filter(INGREDIENTS, $_, $invert);
-}
-
-#if ($open_website > 0) {
-#	system "firefox -new-tab $Mensa::Dresden::URL";
-#}
-
-if ($show_all) {
-	@filters = ();
-}
-
-#for (@filters) {
-#	say $_->{regex};
-#}
+@filters = () if $show_all;
 
 for my $name (@canteens) {
 	my $mensa = Mensa::Dresden->new($name, @filters);
-	my @meals = $mensa->get_offering();
+	my @meals = $mensa->get_offering($tomorrow ? TOMORROW : TODAY);
 	if (@meals) {
 		say "[ $name ]\n";
-		say $_->name for @meals;
+		if ($verbose) {
+			say $_->to_string . "\n" for @meals;
+		} else {
+			say $_->name for @meals;
+		}
 		print "\n";
 	}
 }
-
-#for (@locations) {
-#	my ($city, $location) = split /,\s+/;
-#	if (defined $locations{$city}) {
-#		push $locations{$city}, $location
-#				unless $location ~~ $locations{$city};
-#	} else {
-#		$locations{$city} = [ $location ];
-#	}
-#}
-
-$~ = 'MEALS';
-my ($name, $url);
-
-#while (my ($city, $mensas) = each %locations) {
-#	$city =~ s/\s+//g;
-#	for my $location (@{$mensas}) {
-#		my $mensa = Mensa->new($city, $location);
-#		my @meals = $mensa->get_offering(@filters);
-#		next unless @meals;
-#		my $identifier = uc ($city) . "[ $location ]";
-#		say $identifier . "\n" . ('=' x length $identifier) . "\n";
-#		for my $meal (@meals) {
-#			$name = $meal->get_name();
-#			$url = $meal->get_url();
-#			write;
-#		}
-#		say "\n";
-#	}
-#}
 
 =head2 CONFIGURATION
 
@@ -117,7 +91,7 @@ will load it automatically. The file must have the following structure:
   --- # filters
   name:
     - regular expression #1
-    - ! regular expression #2
+    - ~ regular expression #2
   ingredients:
     - regular expression #3
 
@@ -138,18 +112,9 @@ sub load_config() {
 	return unless defined $filters;
 	while (my ($what, $regexes) = each $filters) {
 		for my $regex (@{$regexes}) {
-			my $invert = $regex =~ s/^~\s*//;
-			push @filters, create_filter($what, $regex, $invert);
+			my $negative = $regex =~ s/^~\s*//;
+			push @filters, create_filter($what, $regex, $negative);
 		}
 	}
 }
-
-#say 'x' x get_width();
-
-format MEALS =
-@<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<         @<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-$name,                                                                                                                                       $url
-.
-
-1;
 
