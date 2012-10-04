@@ -10,13 +10,15 @@ Mensa::Dresden - Perl interface to receive offerings of Dresden's canteens
 
 =head1 SYNOPSIS
 
-  use Mensa::Dresden ':filter';
+  use Mensa::Dresden ':all';
 
-  $mensa = Mensa::Dresden->new(
-      'Alte Mensa',
-	  create_filter(NAME, qr/steak/),
-	  create_filter(INGREDIENTS, qr/vegan/, INVERSE)
-  );
+  $steak_filter = create_filter(NAME, qr/steak/i);
+  $anti_tofu_filter = create_filter(NAME, qr/tofu/i, NEGATIVE);
+
+  $mensa = Mensa::Dresden->new('Alte Mensa', $steak_filter);
+
+  $mensa->create_filter(INGREDIENTS, qr/vegan/, NEGATIVE);
+  $mensa->add_filter($anti_tofu_filter);
 
   @meals = $mensa->get_offering();
   @meals = $mensa->get_offering(TOMORROW);
@@ -24,13 +26,19 @@ Mensa::Dresden - Perl interface to receive offerings of Dresden's canteens
 
 =head1 DESCRIPTION
 
+This module provides a simple interface to receive the offerings of
+Dresden's canteens. Because tastes differ some filters can be specified
+to eliminate loathsome meals. The mensa-script which comes along with
+this distribution implements a simple command line interface to check
+the canteens offering.
+
 =head2 EXPORT
 
 None by default, but there are several constants and some methods which can
 be imported by the C<all>-tag. Additionally all date-related constants are
-exported if the C<date>-tag is specified. Also, all filter-related stuff is
-provided if the B<filter>-tag is given. The next section (CONSTANTS) shows
-which constants and variables are available.
+exported if the C<date>-tag is specified. Similar, all filter-related stuff
+is provided if the C<filter>-tag is given. The next section (CONSTANTS) shows
+which constants are available.
 
 =cut
 
@@ -40,28 +48,24 @@ our @ISA = qw(Exporter);
 
 our %EXPORT_TAGS = (
 	all => [ qw(
-		TOMORROW
+		TODAY TOMORROW
 		MONDAY TUESDAY WEDNESDAY THURSDAY FRIDAY SATURDAY SUNDAY
 		THIS_WEEK NEXT_WEEK AFTERNEXT_WEEK
-		INVERSE NAME INGREDIENTS create_filter
+		create_filter NAME INGREDIENTS POSITIVE NEGATIVE
 	) ],
 	date => [ qw(
-		TOMORROW
+		TODAY TOMORROW
 		MONDAY TUESDAY WEDNESDAY THURSDAY FRIDAY SATURDAY SUNDAY
 		THIS_WEEK NEXT_WEEK AFTERNEXT_WEEK
 	) ],
 	filter => [ qw(
-		INVERSE NAME INGREDIENTS create_filter
+		create_filter NAME INGREDIENTS POSITIVE NEGATIVE
 	) ]
 );
 
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 
-our @EXPORT = qw(
-	
-);
-
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 
 use Carp;
@@ -76,16 +80,13 @@ use Mensa::Dresden::Meal;
 
 =head2 CONSTANTS
 
-=head3 FILTER RELATED
+=head3 FILTER-RELATED
 
-These constants are useful to create filters. (see the description
-of the C<create_filter>-method for more information!)
+These constants are useful to create filters. See the description
+of the C<create_filter>-method and the C<Dresden::Mensa::Filter>
+module for further information.
 
 =over 4
-
-=item B<INVERSE>
-
-This flag indicates that a filter will be inverted.
 
 =item B<NAME>
 
@@ -95,15 +96,29 @@ The identifier for name-specific filters.
 
 The identifier for ingredient-specific filters.
 
+=item B<POSITIVE>
+
+This flag has no effect on the filter but is given for completeness.
+
+=item B<NEGATIVE>
+
+This flag indicates that the filter will be inverted.
+
 =back
 
-=head3 DATE RELATED
+=head3 DATE-RELATED
 
 The date related constants serve as a more readable form to specify
 what meals are requested of which date, relative to the today's date.
-(see the desciption of the C<get_offering>-method for more information!)
+See the desciption of the C<get_offering>-method for more information.
 
 =over 4
+
+=item B<TODAY>
+
+Represents the today's day-number. As the C<get_offering>-method
+supposes the current day if the arguments are omitted, this constant
+is listed only for completeness.
 
 =item B<TOMORROW>
 
@@ -123,6 +138,7 @@ Represents the numbers for the current, next and after next week.
 =cut
 
 use constant {
+	TODAY => (localtime time)[6],
 	TOMORROW => (localtime time)[6] +1 % 7,
 
 	MONDAY => 1,
@@ -139,10 +155,13 @@ use constant {
 };
 
 
+#
+# The base URL of the canteen offerings.
+#
 our $URL = 'http://www.studentenwerk-dresden.de/mensen/speiseplan/';
 
 #
-# the canteen-names with their appropriate mensa-IDs
+# The canteen-names with their appropriate mensa-IDs.
 #
 our %MENSAS = (
 	'Neue Mensa' => 8,
@@ -152,7 +171,7 @@ our %MENSAS = (
 	'Mensa Siedepunkt' => 6,
 	'Mensa Johannstadt' => 32,
 	'Mensa Blau' => 12,
-	'BioMensa U-Boot' => undef,
+	'BioMensa U-Boot' => undef, # no ID given, yet
 	'Mensa TellerRandt' => 7,
 	'Mensa Zittau' => 1,
 	'Mensa Stimm-Gabel' => 13,
@@ -164,7 +183,7 @@ our %MENSAS = (
 );
 
 
-use subs qw(get_url fetch_html load_stylesheet filter);
+use subs qw(get_url fetch_html load_stylesheet filter filter_with);
 
 =head2 METHODS
 
@@ -173,7 +192,8 @@ use subs qw(get_url fetch_html load_stylesheet filter);
 =item B<new>
 
 Creates a new instance of a Dresden's canteen. The first argument is the
-canteen's name while all succeeding arguments must be filters.
+canteen's name while all succeeding arguments must be filters. See the
+C<create_filter>- and C<add_filter>-method for more information.
 
 =cut
 
@@ -190,29 +210,36 @@ sub new {
 	croak("Unknown mensa: $mensa");
 }
 
+=item B<get_name>
+
+Returns the name of the canteen.
+
+=cut
+
+sub get_name() {
+	my $self = shift;
+	return $self->{name};
+}
+
+#
+# The constants which indicate the usage of positive and negative filters.
+# Intended for a more readable usage of the 'filter'-method.
+#
+use constant {
+	positive => 0,
+	negative => 1
+};
+
 =item B<get_offering>
 
 Accepts two arguments. The first one is the day, where 0 indicates sunday and
 3 indicates wednesday. The second argument is the week, where 0 represents the
 current, 1 the next and 2 the after next week. If both is omitted the current
 day and week is supposed while the current week is assumed if only the week
-parameter is omitted.
+parameter is omitted. After the offering was scrapped, the meals are filtered
+as follows:
 
 =cut
-
-# The filter mechanism works as follows:
-# 1. apply all positive filters to all meals,
-#    if at least one matches add the meal
-# 2. apply all negative filters to the already filtered meals,
-#    if at least one does not match remove the meal
-# 3. if no meals were left apply all negative filter to all meals,
-#    if all match add the meal
-# 4. if still no meals are left, return all meals
-
-use constant {
-	positive => 1,
-	negative => 0
-};
 
 sub get_offering(;$$) {
 	my $self = shift;
@@ -224,20 +251,19 @@ sub get_offering(;$$) {
 	my $url = get_url($week, $day);
 	my $html = fetch_html($url);
 	my $offering = $stylesheet->transform($html,
-#		XML::LibXSLT::xpath_to_string(base => $URL),
-#		XML::LibXSLT::xpath_to_string(base => ""),
 		XML::LibXSLT::xpath_to_string(name => $self->{name})
 	);
 	my @meals;
 	for ($offering->getElementsByTagName('meal')) {
-#		$_->setAttribute('url', $URL . $_->getAttribute('url'));
 		my $meal = Mensa::Dresden::Meal->new($_);
 		push @meals, $meal;
 	}
-	return @meals unless @positive_filters or @negative_filters;
-	return $self->filter_meals(@meals);
+	return $self->filter(@meals);
 }
 
+#
+# Delivers the URL which is dependent on the given day and week.
+#
 sub get_url($$) {
 	my ($week, $day) = @_;
 	croak("Not a valid value: week=$week") if $week < 0 or $week > 2;
@@ -245,6 +271,10 @@ sub get_url($$) {
 	return $URL . "w$week-d$day.html";
 }
 
+#
+# Fetches the HTML resource from the given URL and returns it as
+# XML document.
+#
 sub fetch_html($) {
 	my $url = shift;
 	my $agent = LWP::UserAgent->new();
@@ -262,6 +292,10 @@ sub fetch_html($) {
 	return $html;
 }
 
+#
+# Loads the stylesheet which is used to transform the HTML resource
+# into a more appropriate XML representation.
+#
 sub load_stylesheet() {
 	my $xslt = XML::LibXSLT->new();
 	my $position = tell DATA;
@@ -271,93 +305,110 @@ sub load_stylesheet() {
 	return $stylesheet;
 }
 
-sub filter_meals(@) {
+#
+# Filters the given meals. The filter mechanism works as follows:
+# 1. Apply all positive filters to all meals, if at least one matches
+#    add the meal to the list of filtered ones.
+# 2. Apply all negative filters to the already filtered meals, if at
+#    least one does not match, remove the meal, i.e. don't add it.
+# 3. If no meals were left after step 1 and 2 apply all negative
+#    filters to all meals and add the meal only of if all filtern match
+# 4. If still no meals are left, return all meals.
+#
+sub filter(@) {
 	my $self = shift;
 	my @meals = @_;
-#	say ">>>> filters available";
 	my @filtered_meals;
-	# filter with PositiveFilters
-	@filtered_meals = $self->filter(positive, @meals);
-	@filtered_meals = $self->filter(negative, @filtered_meals);
+	@filtered_meals = $self->filter_with(positive, @meals);
+	@filtered_meals = $self->filter_with(negative, @filtered_meals);
 	return @filtered_meals if @filtered_meals;
-#	say ">>>> no positive filters have matched";
-	@filtered_meals = $self->filter(negative, @meals);
-	# filter with NegativeFilters
+	@filtered_meals = $self->filter_with(negative, @meals);
 	return @filtered_meals if @filtered_meals;
-#	say ">>>> no negative filters have matched";
 	return @meals;
 }
 
-sub filter($@) {
+#
+# Applies the filter of the mensa to the given meals. The first argument
+# indicates whether to use the positive or negative filters. If true the
+# negative filters are used. The behavior of positive and negative filters
+# differ. If at least one positive filter matches, the meal passes and
+# will be added to the filtered-array. Otherwise all negative filters must
+# match to retain the meal.
+#
+sub filter_with($@) {
 	my $self = shift;
-	my $positive = shift;
+	my $negative = shift;
 	my @meals = @_;
-	my @filters = @{ $self->{($positive ? 'p' : 'n').'_filters'} };
+	my @filters = @{ $self->{($negative ? 'n' : 'p').'_filters'} };
 	return @meals unless @filters;
 	my @filtered;
 	for my $meal (@meals) {
 		my $matches = grep { $_->pass($meal) } @filters;
-		push @filtered, $meal if $positive and $matches or $matches == @filters;
+		push @filtered, $meal
+				if not $negative and $matches or $matches == @filters;
 	}
 	return @filtered;
 }
 
-sub add_filter(@) {
-	my $self = shift;
-	for (@_) {
-		carp("Not a filter: $_") and next
-				unless /^Mensa::Dresden::Filter=HASH\(0x[\da-f]{7}\)/;
-		my $filter_type = ($_->is_positive ? 'p' : 'n') . '_filters';
-		push $self->{ $filter_type }, $_;
-	}
-}
+=item B<create_filter>
+
+Creates a new filter. The first argument is the criterion which should be
+filtered, i.e. one of C<name> or C<ingredients>. To avoid typos the
+C<NAME>- and C<INGREDIENTS>-constant should be used for identification.
+The second argument is the regular expression which the criterion must match
+to get not rejected. The third parameter is optional and indicates whether
+the filter is positive or negative, i.e. a negative filter let the meal pass
+only if the criterion does not match the expression. To keep it more readable
+one can use the C<NEGATIVE>-constant to get this done (the C<POSITIVE>-constant
+can also be used, but is implicitly supposed if omitted). Besides, if this
+routine is used as object-method the filter is added immediately, so the
+C<add_filter>-method must not be invoked separately.
+
+=cut
 
 sub create_filter {
 	my $self = shift;
 	my $filter;
 	if ($self =~ /^Mensa::Dresden=HASH\(0x[\da-f]{7}\)/) {
 		$filter = create_filter(@_);
-		my $filter_type = ($filter->is_positive ? 'p' : 'n') . '_filters';
-		push $self->{ $filter_type }, $filter;
+		$self->add_filter($filter);
 	} else {
-		my ($criterion, $regex, $invert) = ($self, @_);
+		unshift @_, $self unless $self eq 'Mensa::Dresden';
+		my ($criterion, $regex, $negative) = @_;
 		$filter = Mensa::Dresden::Filter->new(
-				$criterion, qr/$regex/i, $invert
+				$criterion, qr/$regex/i, $negative
 		);
 	}
 	return $filter;
 }
 
-=item B<get_name>
+=item B<add_filter>
 
-Returns the name of the canteen.
+Adds the given filters to the canteen.
 
 =cut
 
-sub get_name() {
+sub add_filter(@) {
 	my $self = shift;
-	return $self->{name};
+	for (@_) {
+		carp("Not a filter: $_") and next
+				unless /^Mensa::Dresden::Filter=HASH\(0x[\da-f]{7}\)/;
+		my $filter_type = ($_->is_negative ? 'n' : 'p') . '_filters';
+		push $self->{ $filter_type }, $_;
+	}
 }
 
-=item B<create_filter>
+=item B<reset_filters>
 
-Creates a new filter. The first argument is the thing which should be
-filtered, i.e. one of C<name> or C<ingredients>. To avoid typos the
-C<NAME>- and C<INGREDIENTS>-constant should be used for identification.
-The second argument is the regular expression which the thing must match
-to get not rejected. The third parameter is optional and indicates whether
-the filter is inverted, i.e. the thing must not match the expression to
-get retained. To keep it more readable one can use the C<INVERSE>-constant
-to get this done.
+Removes all added filters.
 
 =cut
 
-#sub create_filter($$;$) {
-#	my ($criterion, $regex, $invert) = @_;
-#	return Mensa::Dresden::Filter->new(
-#		$criterion, $regex, $invert
-#	);
-#}
+sub reset_filters() {
+	my $self = shift;
+	$self->{p_filters} = [];
+	$self->{n_filters} = [];
+}
 
 =back
 
@@ -376,6 +427,8 @@ If C<cache> is enabled the module will save the fetched html in a
 temp-directory to enhance the speed of the module which otherwise
 is dependent on the network-speed. The benefit will appear as the
 offering is requested a second time.
+
+=item extract the detail photo URL
 
 =back
 
@@ -402,53 +455,50 @@ at your option, any later version of Perl 5 you may have available.
 __DATA__
 <?xml version="1.0"?>
 <xsl:stylesheet version="1.0"
-    xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
-    xmlns:fn="http://www.w3.org/2005/xpath-functions"
-    xmlns:x="http://www.w3.org/1999/xhtml">
-    <xsl:output method="xml" indent="yes" encoding="UTF-8" omit-xml-declaration="no"/>
+		xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+		xmlns:fn="http://www.w3.org/2005/xpath-functions"
+		xmlns:x="http://www.w3.org/1999/xhtml">
+		<xsl:output method="xml" indent="yes" encoding="UTF-8" omit-xml-declaration="no"/>
 
-  <!--xsl:param name="base"/-->
-  <xsl:param name="name"/>
+	<xsl:param name="name"/>
 
-  <xsl:template match="/">
-    <xsl:element name="offering">
-      <xsl:for-each select="//div[@id='spalterechtsnebenmenue']/table[@class='speiseplan'
-          and thead/tr/th[@class='text']=$name]">
-        <xsl:element name="mensa">
-          <xsl:attribute name="name">
-            <xsl:value-of select="thead/tr/th[@class='text']"/>
-          </xsl:attribute>
-          <xsl:for-each select="tbody/tr">
-            <!--xsl:if test="not(fn:empty(td[@class='text']/a))"-->
-            <xsl:if test="string-length(td[@class='text']/a/@href) > 0">
-              <xsl:element name="meal">
-                <xsl:attribute name="url">
-                  <!--xsl:value-of select="concat($base, td[@class='text']/a/@href)"/-->
-                  <xsl:value-of select="td[@class='text']/a/@href"/>
-                  <!--xsl:value-of select="resolve-uri(td[@class='text']/a/@href, $base)"/-->
-                </xsl:attribute>
-                <xsl:element name="name">
-                  <xsl:value-of select="td[@class='text']/a"/>
-                </xsl:element>
-                <xsl:for-each select="td[@class='stoffe']/a/img">
-                  <xsl:element name="ingredient">
-                    <xsl:choose>
-                      <xsl:when test="contains(@title, 'vegan')">
-                        <xsl:value-of select="substring(@title, 10)"/>
-                      </xsl:when>
-                      <xsl:otherwise>
-                        <xsl:value-of select="substring(@title, 14)"/>
-                      </xsl:otherwise>
-                    </xsl:choose>
-                  </xsl:element>
-                </xsl:for-each>
-              </xsl:element>
-            </xsl:if>
-          </xsl:for-each>
-        </xsl:element>
-      </xsl:for-each>
-    </xsl:element>
-  </xsl:template>
+	<xsl:template match="/">
+		<xsl:element name="offering">
+			<xsl:for-each select="//div[@id='spalterechtsnebenmenue']/table[@class='speiseplan'
+					and thead/tr/th[@class='text']=$name]">
+				<xsl:element name="mensa">
+					<xsl:attribute name="name">
+						<xsl:value-of select="thead/tr/th[@class='text']"/>
+					</xsl:attribute>
+					<xsl:for-each select="tbody/tr">
+						<!--xsl:if test="not(fn:empty(td[@class='text']/a))"-->
+						<xsl:if test="string-length(td[@class='text']/a/@href) > 0">
+							<xsl:element name="meal">
+								<xsl:attribute name="url">
+									<xsl:value-of select="td[@class='text']/a/@href"/>
+								</xsl:attribute>
+								<xsl:element name="name">
+									<xsl:value-of select="td[@class='text']/a"/>
+								</xsl:element>
+								<xsl:for-each select="td[@class='stoffe']/a/img">
+									<xsl:element name="ingredient">
+										<xsl:choose>
+											<xsl:when test="contains(@title, 'vegan')">
+												<xsl:value-of select="substring(@title, 10)"/>
+											</xsl:when>
+											<xsl:otherwise>
+												<xsl:value-of select="substring(@title, 14)"/>
+											</xsl:otherwise>
+										</xsl:choose>
+									</xsl:element>
+								</xsl:for-each>
+							</xsl:element>
+						</xsl:if>
+					</xsl:for-each>
+				</xsl:element>
+			</xsl:for-each>
+		</xsl:element>
+	</xsl:template>
 
 </xsl:stylesheet>
 

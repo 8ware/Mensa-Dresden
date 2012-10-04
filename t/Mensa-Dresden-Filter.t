@@ -11,7 +11,7 @@ use warnings;
 use feature 'say';
 
 use Test::More 'no_plan';#tests => 1;
-BEGIN { use_ok('Mensa::Dresden::Filter') };
+BEGIN { use_ok('Mensa::Dresden::Filter', ':all') };
 
 #########################
 
@@ -26,6 +26,7 @@ my $filter = Mensa::Dresden::Filter->new(
 	'name',
 	qr/test/
 );
+
 
 my $xml = XML::LibXML->load_xml(string => <<XML);
 <?xml version="1.0" encoding="UTF-8" ?>

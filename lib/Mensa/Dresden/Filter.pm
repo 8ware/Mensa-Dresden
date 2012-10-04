@@ -6,29 +6,32 @@ use warnings;
 
 =head1 NAME
 
-Mensa::Dresden::Filter - Datastructure to filter out meals
+Mensa::Dresden::Filter - Utility-class to filter out meals
 
 =head1 SYNOPSIS
 
   use Mensa::Dresden::Filter ':all';
 
   $steak_filter = Mensa::Dresden::Filter->new(
-      'name', qr/(?!tofu)steak/i
+      NAME, qr/steak/i
   );
-
+  
   $anti_vegan_filter = Mensa::Dresden::Filter->new(
-      'ingredients', qr/vegan/, IGNORE
+      INGREDIENTS, qr/vegan/, NEGATIVE
   );
 
 =head1 DESCRIPTION
 
-This datastructure serves as filter for meals.
+This utility-class serves as filter for meals. A filter consists
+of a criterion, a regular expression and a flag which impacts the
+filter's behavior. As the filter is applied via the C<pass>-method
+the criterion is evaluated against the expression, while the flag
+effects the boolean result.
 
 =head2 EXPORT
 
-None by default.
-
-=head2 OPTIONS
+None by default. The C<all>-tag exports the constants which are
+listed in the CONSTANTS section. 
 
 =cut
 
@@ -37,19 +40,14 @@ require Exporter;
 our @ISA = qw(Exporter);
 
 our %EXPORT_TAGS = ( all => [ qw(
-	INVERSE NAME INGREDIENTS
+	NAME INGREDIENTS
+	POSITIVE NEGATIVE
 ) ] );
 
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 
-our @EXPORT = qw(
-	
-);
-
 our $VERSION = '0.01';
 
-
-our $DEBUG = 0;
 
 =head2 CONSTANTS
 
@@ -57,9 +55,24 @@ our $DEBUG = 0;
 
 =item B<NAME>
 
+Represents the C<name>-criterion which applies the filter to the
+name of the meal.
+
 =item B<INGREDIENTS>
 
-=item B<INVERSE>
+Represents the C<ingredients>-criterion which applies the filter
+to each ingredient of the meal.
+
+=item B<POSITIVE>
+
+Indicates that the filter let only meals pass if the criterion
+matches the expression. Because this behavior is the default one
+this flag does not impact the filter's functionality.
+
+=item B<NEGATIVE>
+
+Indicates that the filter is inverted and only meals can pass
+which criterion does not match the expression.
 
 =back
 
@@ -69,7 +82,8 @@ use constant {
 	NAME => 'name',
 	INGREDIENTS => 'ingredients',
 
-	INVERSE => 1
+	POSITIVE => 0,
+	NEGATIVE => 1
 };
 
 =head2 METHODS
@@ -79,7 +93,11 @@ use constant {
 =item B<new>
 
 Accepts the filter-criterion (e.g. C<name> or C<ingredients>), a regular
-expression and optionally the inversion-flag in that order (see constants).
+expression and optionally the inversion-flag (see constants) in this order.
+The regular expression is wrapped with the regex-quote and the ignore-case
+flag if not happened. An already interpolated expression (using the
+C<qr>-operator) will exactly behave as passed to this method, due the regex
+is not interpolated twice.
 
 =cut
 
@@ -87,11 +105,11 @@ sub new {
 	my $class = shift;
 	my $criterion = shift;
 	my $regex = shift;
-	my $inverse = shift;
+	my $negative = shift || 0;
 	my $self = {
 		criterion => $criterion,
 		regex => qr/$regex/i,
-		inverse => $inverse || 0
+		negative => $negative ? 1 : 0 # enforce 1 or 0
 	};
 	return bless $self, $class;
 }
@@ -108,30 +126,24 @@ sub pass($) {
 	my $meal = shift;
 	my $criterion = $self->{criterion};
 	my $regex = $self->{regex};
-	my $inverse = $self->{inverse};
-	say uc ($criterion) . "[ " . ($inverse ? '!' : '=') . "~ $regex ]" if $DEBUG;
+	my $negative = $self->{negative};
 	my $result = 0;
 	for ($meal->$criterion) {
 		$result |= /$regex/;
-		say "$_ =~ /$regex/i = " . m/$regex/i . " RES[ $result ]" if $DEBUG;
-		say "$_ =~ /".qr/rind/i."/i" if $DEBUG;
 	}
-	say "RETURN[ " . ($inverse ^ $result) . " ]" if $DEBUG;
-	return $inverse ^ $result;
+	return $negative ^ $result;
 }
 
 =item B<is_negative>
+
+Returns C<true> if the negative-/inversion-flag was set;
+C<false> otherwise.
 
 =cut
 
 sub is_negative() {
 	my $self = shift;
-	return $self->{inverse};
-}
-
-sub is_positive() {
-	my $self = shift;
-	return not $self->{inverse};
+	return $self->{negative};
 }
 
 =back
@@ -141,3 +153,17 @@ sub is_positive() {
 
 1;
 __END__
+=head1 AUTHOR
+
+8ware, E<lt>8wared@googlemail.comE<gt>
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (C) 2012 by 8ware
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself, either Perl version 5.14.2 or,
+at your option, any later version of Perl 5 you may have available.
+
+=cut
+

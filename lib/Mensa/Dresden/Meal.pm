@@ -6,16 +6,20 @@ use warnings;
 
 =head1 NAME
 
-Mensa::Dresden::Meal - The datastructure which contains all meal-related
-information
+Mensa::Dresden::Meal - The datastructure which contains all
+meal-related information
 
 =head1 SYNOPSIS
 
   use Mensa::Dresden::Meal;
 
-  $meal = Mensa::Dresden::Meal->new($xml_meal);
+  $meal = Mensa::Dresden::Meal->new($meal_xml);
 
 =head1 DESCRIPTION
+
+This datastructure contains all meal relevant information. It is
+used to deliver the offering in a well defined structure which
+is applicable to be filtered.
 
 =head2 EXPORT
 
@@ -27,30 +31,23 @@ require Exporter;
 
 our @ISA = qw(Exporter);
 
-# Items to export into callers namespace by default. Note: do not export
-# names by default without a very good reason. Use EXPORT_OK instead.
-# Do not simply export all your public functions/methods/constants.
-
-# This allows declaration	use Mensa::Dresden::Meal ':all';
-# If you do not need this, moving things directly into @EXPORT or @EXPORT_OK
-# will save memory.
 our %EXPORT_TAGS = ( 'all' => [ qw(
 	
 ) ] );
 
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 
-our @EXPORT = qw(
-	
-);
-
 our $VERSION = '0.01';
 
 
 use Carp;
+use Fcntl 'SEEK_SET';
 use XML::LibXML;
 use XML::LibXSLT;
 
+#
+# The possible ingredients.
+#
 my %INGREDIENTS = (
 	"Menü enthält Schweinefleisch" => 'PORK',
 	"Menü enthält Rindfleisch" => 'BEEF',
@@ -60,13 +57,16 @@ my %INGREDIENTS = (
 	"Menü ist vegan" => 'VEGAN'
 );
 
-use subs qw(_validate _get_text_content _get_ingredients);
+use subs qw(_validate _get_name _get_ingredients);
 
 =head2 METHODS
 
 =over 4
 
 =item B<new>
+
+Instantiates a new meal by extracting all required information
+from the given XML node.
 
 =cut
 
@@ -77,35 +77,46 @@ sub new {
 	my @ingredients = _get_ingredients($xml);
 	my $self = {
 		url => $xml->getAttribute('url'),
-		name => _get_text_content($xml, 'name'),
+		name => _get_name($xml),
 		ingredients => \@ingredients
 	};
 	return bless $self, $class;
 }
 
+#
+# Validates the given XML against the schema.
+#
 sub _validate($) {
 	my $xml = shift;
+	my $position = tell DATA;
 	my $schema = XML::LibXML::Schema->new(IO => *DATA);
-	$schema->validate($xml);
+	seek DATA, $position, SEEK_SET;
+	eval { $schema->validate($xml) };
+	croak("No valid meal XML: $@") if $@;
 }
 
-sub _get_text_content($$) {
+#
+# Extracts the text content from the given XML node.
+#
+sub _get_name($) {
 	my $xml = shift;
-	my $name = shift;
-	my ($element) = $xml->getChildrenByTagName($name);
+	my ($element) = $xml->getChildrenByTagName('name');
 	return $element->textContent();
 }
 
+#
+# Extracts all ingredients from the given XML node.
+#
 sub _get_ingredients($) {
 	my $xml = shift;
-	my @ingredients;
-	for ($xml->getElementsByTagName('ingredient')) {
-		push @ingredients, $_->textContent();
-	}
-	return @ingredients;
+	return map {
+		$_->textContent()
+	} $xml->getElementsByTagName('ingredient');
 }
 
 =item B<name>
+
+Returns the name of the meal.
 
 =cut
 
@@ -116,6 +127,8 @@ sub name {
 
 =item B<url>
 
+Returns the URL to the meal's detail-site.
+
 =cut
 
 sub url {
@@ -125,6 +138,8 @@ sub url {
 
 =item B<ingredients>
 
+Returns the ingredients of the meal as list.
+
 =cut
 
 sub ingredients() {
@@ -132,7 +147,14 @@ sub ingredients() {
 	return @{ $self->{ingredients} };
 }
 
-=back
+=item B<to_string>
+
+Returns a printable string which contains the information of the meal
+as follows:
+
+  name of the meal
+  > ingredients
+  http://example.org/meal's-detail-site
 
 =cut
 
@@ -140,13 +162,17 @@ sub to_string() {
 	my $self = shift;
 	my $string = '';
 	$string .= $self->name . "\n";
-	my @ingredients = $self->ingredients();
+	my @ingredients = $self->ingredients;
 	@ingredients = '-' unless @ingredients;
 	local $" = ', ';
 	$string .= "> @ingredients\n";
 	$string .= $self->url;
 	return $string;
 }
+
+=back
+
+=cut
 
 
 1;
@@ -162,7 +188,6 @@ Copyright (C) 2012 by 8ware
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself, either Perl version 5.14.2 or,
 at your option, any later version of Perl 5 you may have available.
-
 
 =cut
 
