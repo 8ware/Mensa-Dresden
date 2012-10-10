@@ -6,13 +6,25 @@ use warnings;
 use feature 'say';
 use encoding 'utf8';
 
-use lib '/media/Share/development/perl/Mensa-Dresden/lib';
-
 =head1 NAME
 
-mensa - little script to check the canteen's offerings in Dresden
+mensa - little script to get the canteen offerings in Dresden
+
+=head1 SYNOPSIS
+
+  mensa [-a|--all] [-d|--details] [-t|--tomorrow]
+        [-f|--filter name|ingredient=<regex>]
+        [--neue-mensa|--alte-mensa|--mensa-reichenbachstrasse|
+         --mensologie|--mensa-siedepunkt|--mensa-johannstadt|
+         --mensa-blau|--biomensa-u-boot|--mensa-tellerrandt|
+         --mensa-zittau|--mensa-stimm-gabel|--mensa-palucca-schule|
+         --mensa-goerlitz|--mensa-haus-vii|--mensa-sport|
+         --mensa-kreuzgymnasium]
 
 =head1 DESCRIPTION
+
+This (example) script uses the Mensa::Dresden module to retrieve
+the offering of Dresden's (and its environs) canteens.
 
 =cut
 
@@ -24,11 +36,9 @@ use subs qw(load_config);
 
 my @canteens;
 my @filters;
-my @name_filters;
-my @ingredient_filters;
+my $no_filters = 0;
+my $details = 0;
 my $tomorrow = 0;
-my $show_all = 0;
-my $verbose = 0;
 
 load_config();
 
@@ -36,38 +46,125 @@ load_config();
 
 =over 4
 
-=item B<-c>, B<--canteen>
+=item B<-a, --all>
+
+Deaktivates all filters and show every meal.
+
+=item B<-d, --details>
+
+Enables the detail-flag which outputs the ingredients and the URL to
+the meal's detail-site besides the meal's name as it is oridinarily.
+
+=item B<-f, --filter>
+
+Adds a filter. The argument must specify the criterion (name/ingredient)
+and the regex, as the example shows:
+
+  --filter name=steak
+
+The expression can be negated by adding a leading tilde like C<~tofu>.
+
+=item B<-t, --tomorrow>
+
+Delivers the offering of tomorrow.
+
+=item B<-h, --help>
+
+Shows a short usage-message (like the SYNOPSIS).
+
+=item B<--bash-completion>
+
+This experimental option prints out the bash-completion for this script.
+Type C<mensa --bash-completion E<gt>E<gt> ~/.bash_completion> to add
+auto-complete functionality for it. B<NOTE:> This option may be removed
+in future versions.
+
+=cut
+
+my %options;
+%options = (
+	'all|a' => \$no_filters,
+	'details|d' => \$details,
+	'filter|f=s' => sub {
+		my $option = shift;
+		my $value = shift;
+		my ($criterion, $_) = split /=/, $value;
+		push @filters, create_filter($criterion => $_, s/^~\s*//);
+	},
+	'tomorrow|t' => \$tomorrow,
+	'help|h' => sub {
+		print <<HELP;
+usage: mensa [-a|--all] [-d|--details] [-t|--tomorrow]
+             [-f|--filter name|ingredient=<regex>]
+             [--neue-mensa|--alte-mensa|--mensa-reichenbachstrasse|
+              --mensologie|--mensa-siedepunkt|--mensa-johannstadt|
+              --mensa-blau|--biomensa-u-boot|--mensa-tellerrandt|
+              --mensa-zittau|--mensa-stimm-gabel|--mensa-palucca-schule|
+              --mensa-goerlitz|--mensa-haus-vii|--mensa-sport|
+              --mensa-kreuzgymnasium] [-h|--help]
+HELP
+		exit;
+	},
+
+	'bash-completion' => sub {
+		my @word_list;
+		for (keys %options) {
+			next if $_ eq 'bash-completion';
+			s/=.+//;
+			push @word_list, map {
+				(length == 1 ? '-' : '--') . $_
+			} split /\|/;
+		}
+		say "complete -W \"@word_list\" mensa";
+		exit;
+	}
+);
+
+=item B<--neue-mensa, --alte-mensa, --mensa-reichenbachstrasse,
+		--mensologie, --mensa-siedepunkt, --mensa-johannstadt,
+		--mensa-blau, --biomensa-u-boot, --mensa-tellerrandt,
+		--mensa-zittau, --mensa-stimm-gabel, --mensa-palucca-schule,
+		--mensa-goerlitz, --mensa-haus-vii, --mensa-sport,
+		--mensa-kreuzgymnasium>
+
+Selects the denoted canteen to receive its offering.
 
 =back
 
 =cut
 
-GetOptions(
-	'canteen|c=s@' => \@canteens,
-	'filter-name|name|n=s@' => \@name_filters,
-	'filter-ingredient|ingredient|i=s@' => \@ingredient_filters,
-	'tomorrow' => \$tomorrow,
-	'show-all' => \$show_all,
-	'verbose' => \$verbose
-);
+my %canteens;
+for (keys %Mensa::Dresden::MENSAS) {
+	my $name = $_;
+	s/\s/-/g;
+	tr/A-ZÄÖÜ/a-zäöü/;
+	s/ä/ae/g;
+	s/ö/oe/g;
+	s/ü/ue/g;
+	s/ß/ss/g;
+	$canteens{$name} = 0;
+	$options{$_} = \$canteens{$name};
+}
+
+GetOptions(%options);
+
+while (my($name, $selected) = each %canteens) {
+	push @canteens, $name if $selected;
+}
 
 {	# remove dublicated canteens
 	my %tmp = map { $_ => 1 } @canteens;
 	@canteens = keys %tmp;
 }
 
-push @filters, map { create_filter(NAME, $_, s/^~\s*//) } @name_filters;
-push @filters, map {
-	create_filter(INGREDIENTS, $_, s/^~\s*//) } @ingredient_filters;
-
-@filters = () if $show_all;
+@filters = () if $no_filters;
 
 for my $name (@canteens) {
 	my $mensa = Mensa::Dresden->new($name, @filters);
 	my @meals = $mensa->get_offering($tomorrow ? TOMORROW : TODAY);
 	if (@meals) {
 		say "[ $name ]\n";
-		if ($verbose) {
+		if ($details) {
 			say $_->to_string . "\n" for @meals;
 		} else {
 			say $_->name for @meals;
@@ -78,7 +175,7 @@ for my $name (@canteens) {
 
 =head2 CONFIGURATION
 
-To configure the mensa-script and avoid of passing thousands of options
+To configure the mensa-script and avoid of passing a thousands of options
 to it, the script can load configurations from a YAML-file. Simply place
 a new file in your home directory and name it C<.mensarc>. The script
 will load it automatically. The file must have the following structure:
@@ -91,14 +188,14 @@ will load it automatically. The file must have the following structure:
   --- # filters
   name:
     - regular expression #1
-    - ~ regular expression #2
+    - ~ negated regular expression #2
   ingredients:
     - regular expression #3
 
 The first section lists all mensas which are requested for their offering.
 The second section contains all filters which were applied to each meal to
-determine if it's printed or not. The questionmark in front of a regex
-indicates that it must not match the expression.
+determine if it's retained or not. A tilde leading the regex indicates that
+it must not match the expression (negative filter).
 
 =cut
 
@@ -110,11 +207,28 @@ sub load_config() {
 	@canteens = @{$canteens} if defined $canteens;
 
 	return unless defined $filters;
-	while (my ($what, $regexes) = each $filters) {
-		for my $regex (@{$regexes}) {
-			my $negative = $regex =~ s/^~\s*//;
-			push @filters, create_filter($what, $regex, $negative);
+	while (my ($criterion, $regexes) = each $filters) {
+		for (@{$regexes}) {
+			push @filters, create_filter($criterion => $_, s/^~\s*//);
 		}
 	}
 }
+
+=head1 SEE ALSO
+
+http://www.studentenwerk-dresden.de/mensen/speiseplan/
+
+=head1 AUTHOR
+
+8ware, E<lt>8wared@googlemail.comE<gt>
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (C) 2012 by 8ware
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself, either Perl version 5.14.2 or,
+at your option, any later version of Perl 5 you may have available.
+
+=cut
 

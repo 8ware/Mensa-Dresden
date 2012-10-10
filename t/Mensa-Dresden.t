@@ -1,159 +1,226 @@
-# Before `make install' is performed this script should be runnable with
-# `make test'. After `make install' it should work as `perl Mensa-Dresden.t'
-
-#########################
-
-# change 'tests => 1' to 'tests => last_test_to_print';
-
 use strict;
 use warnings;
 
-use feature 'say';
 use encoding 'utf8';
 
-use Test::More 'no_plan';#tests => 1;
+=head1 NAME
+
+Mensa::Dresden::Test - test suite of the Mensa::Dresden module
+
+=cut
+
+use Test::More tests => 8;
 BEGIN { use_ok('Mensa::Dresden', ':all') };
 
 use File::Basename;
 use Cwd 'abs_path';
 
-#########################
+=head1 DESCRIPTION
 
-# Insert your test code below, the Test::More module is use()ed here so read
-# its man page ( perldoc Test::More ) for help writing this test script.
+Tests all relevant subroutines and functionalities of a Mensa::Dresden
+object. To speed up the tests the URL used to receive the canteen's
+offering is redirected to t/res, where three sample offerings are located.
 
-# redirect to offline resources: w0-d0.html, w1-d1.html, w2-d3.html
+=cut
+
 my $t_dir = abs_path dirname($0);
 $Mensa::Dresden::URL = "file://$t_dir/res/";
 
+=head2 TEST-CASES
+
+=over 4
+
+=item B<constructor>
+
+Test of the behavior on an unknown canteen name.
+
+=cut
+
+eval "Mensa::Dresden->new('Mensa Fail')";
+ok($@, "[new] fail with unknown canteen name");
+
 my $mensa = Mensa::Dresden->new('Alte Mensa');
-my @meals;
 
-my $steak_filter = $mensa->create_filter('name', qr/steak/i);
-@meals = $mensa->get_offering(0, 0);
-is(@meals, 2, "test steak-filter");
-$mensa->reset_filters();
-
-my $meatball_filter = $mensa->create_filter('name', qr/frikadelle/i);
-@meals = $mensa->get_offering(1, 1);
-is(@meals, 1, "find tofu-meatball");
-my $antitofu_filter = $mensa->create_filter('name', qr/tofu/i, NEGATIVE);
-@meals = $mensa->get_offering(1, 1);
-ok(@meals > 1, "filter out tofu-meatball, get all other");
-$mensa->reset_filters();
-
-exit;
-
-my $beefsteak_filter = create_filter('name', qr/Rinderhüftsteak/);
-my $meat_filter = create_filter('ingredients', qr/kein Fleisch/, 1);
-$mensa->add_filter($beefsteak_filter);
-$mensa->add_filter($meat_filter);
-$mensa->create_filter('ingredients', qr/vegan/, 1);
-$mensa->create_filter('name', qr/^Terrine/, 1);
-@meals = $mensa->get_offering(1, 1); # TODO test for (0, 0)-param
-
-my $filter = Mensa::Dresden->create_filter('name', qr/a/i);
-
-say '=' x 20;
-
-say $_->to_string() . "\n" for @meals;
-
-
-my %w0d0 = (
-	'Hacksteak mit Bratensoße, buntem Gemüse und Petersilienkartoffeln' => [ qw(Schweinefleisch Rindfleisch) ],
-	'Drei Kartoffel-Frischkäsetaschen mit buntem Gemüse' => [ 'kein Fleisch' ],
-	'Wok & Grill: Garnelenpfanne mit buntem Gemüse aus dem Wok, dazu Basmati Reis' => [ qw(Alkohol Knoblauch) ],
-	'Gefülltes Pizzabrötchen' => [ 'kein Fleisch' ],
-	'Pizzabrot mit Kräuterbutter und Käse,' => [],
-	'Pasta: Käserahmsoße mit Blattspinat' => [ 'kein Fleisch', 'Rindfleisch' ],
-	'Pasta: Tomatensoße mit Jagdwurst' => [ qw(Schweinefleisch Rindfleisch Knoblauch) ]
+our %w0d0 = (
+	'Hacksteak mit Bratensoße, buntem Gemüse und Petersilienkartoffeln'
+	=> [ qw(Schweinefleisch Rindfleisch) ],
+	'Drei Kartoffel-Frischkäsetaschen mit buntem Gemüse'
+	=> [ 'kein Fleisch' ],
+	'Wok & Grill: Garnelenpfanne mit buntem Gemüse aus dem Wok, dazu Basmati Reis'
+	=> [ qw(Alkohol Knoblauch) ],
+	'Gefülltes Pizzabrötchen'
+	=> [ 'kein Fleisch' ],
+	'Pizzabrot mit Kräuterbutter und Käse,'
+	=> [],
+	'Pasta: Käserahmsoße mit Blattspinat'
+	=> [ 'kein Fleisch', 'Rindfleisch' ],
+	'Pasta: Tomatensoße mit Jagdwurst'
+	=> [ qw(Schweinefleisch Rindfleisch Knoblauch) ]
+);
+our %w1d1 = (
+	'Rindergulasch ungarischer Art mit Rosenkohl, Hefeknödeln oder Petersilienkartoffeln'
+	=> [ 'Rindfleisch' ],
+	'Tofufrikadelle mit Zwiebel und Paprika an scharfer Tomatensalsa und Pastasotto'
+	=> [ 'kein Fleisch', qw(Alkohol Knoblauch) ],
+	'Wok & Grill: Rückensteak vom Schwein mit Orangen-Pfeffersoße'
+	=> [ 'Schweinefleisch' ],
+	'Hausgemachte Pasta, heute Amori mit Kräuter-Pilzpesto'
+	=> [ 'Schweinefleisch' ],
+	'Pizza Bel Paese mit Tomaten und Hirtenkäse'
+	=> [ 'kein Fleisch', 'Knoblauch' ],
+	'Pizza mit Peperonisalami, Zwiebeln und Paprika'
+	=> [ qw(Schweinefleisch Rindfleisch Knoblauch) ],
+	'Pasta: Tomatensoße mit Paprika'
+	=> [ 'kein Fleisch', 'Knoblauch' ],
+	'Pasta: Pute in fruchtiger Currysoße'
+	=> [ 'Knoblauch' ],
+	'Auflauf: Aprikosen-Quarkauflauf mit Sauerkirschen'
+	=> [ 'kein Fleisch' ],
+	'Terrine: Brühgräupchen mit Kassler und Kohlrabi'
+	=> [ qw(Schweinefleisch Rindfleisch) ]);
+our %w2d3 = (
+	'Hackfleischbällchen in Kapernsoße mit Möhrengemüse, dazu Reis oder Petersilienkartoffeln'
+	=> [ qw(Schweinefleisch Rindfleisch) ],
+	'Schweinskammsteak Zigeuner Art mit Erbsen und Pommes frites'
+	=> [ qw(Schweinefleisch Rindfleisch) ],
+	'Frühlingsrolle an geschmortem Spinat mit Ingwer,Sojasoße und Knoblauch , dazu Reis'
+	=> [ 'kein Fleisch', 'Knoblauch' ],
+	'Wok & Grill: Garnelenpfanne mit buntem Gemüse aus dem Wok an Mie Nudeln'
+	=> [ qw(Alkohol Knoblauch) ],
+	'Hausgemachte frische Pasta, heute Linguine Carbonara'
+	=> [ qw(Schweinefleisch Knoblauch) ],
+	'Pizza Funghi mit Champignons, Zwiebeln und Mais'
+	=> [ 'Knoblauch' ],
+	'Pizza Bombay mit Hähnchenfleisch, Ananas und Currycreme'
+	=> [ 'Knoblauch' ],
+	'Pasta: Frischkäse-Kräutersoße'
+	=> [ 'kein Fleisch' ],
+	'Pasta: Zigeunersoße'
+	=> [ qw(Schweinefleisch Rindfleisch Knoblauch) ],
+	'Auflauf: Kartoffel-Bohnenauflauf'
+	=> [],
 );
 
-__END__
-# w0-d0.html ############################################
-#
-# Hacksteak mit Bratensoße, buntem Gemüse und Petersilienkartoffeln
-# > Schweinefleisch, Rindfleisch
-#
-# Drei Kartoffel-Frischkäsetaschen mit buntem Gemüse
-# > kein Fleisch
-#
-# Wok & Grill: Garnelenpfanne mit buntem Gemüse aus dem Wok, dazu Basmati Reis
-# > Alkohol, Knoblauch
-#
-# Gefülltes Pizzabrötchen
-# > kein Fleisch
-#
-# Pizzabrot mit Kräuterbutter und Käse,
-# > -
-#
-# Pasta: Käserahmsoße mit Blattspinat
-# > kein Fleisch, Rindfleisch
-#
-# Pasta: Tomatensoße mit Jagdwurst
-# > Schweinefleisch, Rindfleisch, Knoblauch
-#
-# w1-d1.html ############################################
-#
-# Rindergulasch ungarischer Art mit Rosenkohl, Hefeknödeln oder Petersilienkartoffeln
-# > Rindfleisch
-#
-# Tofufrikadelle mit Zwiebel und Paprika an scharfer Tomatensalsa und Pastasotto
-# > kein Fleisch, Alkohol, Knoblauch
-#
-# Wok & Grill: Rückensteak vom Schwein mit Orangen-Pfeffersoße
-# > Schweinefleisch
-#
-# Hausgemachte Pasta, heute Amori mit Kräuter-Pilzpesto
-# > Schweinefleisch
-#
-# Pizza Bel Paese mit Tomaten und Hirtenkäse
-# > kein Fleisch, Knoblauch
-#
-# Pizza mit Peperonisalami, Zwiebeln und Paprika
-# > Schweinefleisch, Rindfleisch, Knoblauch
-#
-# Pasta: Tomatensoße mit Paprika
-# > kein Fleisch, Knoblauch
-#
-# Pasta: Pute in fruchtiger Currysoße
-# > Knoblauch
-#
-# Auflauf: Aprikosen-Quarkauflauf mit Sauerkirschen
-# > kein Fleisch
-#
-# Terrine: Brühgräupchen mit Kassler und Kohlrabi
-# > Schweinefleisch, Rindfleisch
-#
-# w2-d3.html ############################################
-#
-# Hackfleischbällchen in Kapernsoße mit Möhrengemüse, dazu Reis oder Petersilienkartoffeln
-# > Schweinefleisch, Rindfleisch
-#
-# Schweinskammsteak Zigeuner Art mit Erbsen und Pommes frites
-# > Schweinefleisch, Rindfleisch
-#
-# Frühlingsrolle an geschmortem Spinat mit Ingwer,Sojasoße und Knoblauch , dazu Reis
-# > kein Fleisch, Knoblauch
-#
-# Wok & Grill: Garnelenpfanne mit buntem Gemüse aus dem Wok an Mie Nudeln
-# > Alkohol, Knoblauch
-#
-# Hausgemachte frische Pasta, heute Linguine Carbonara
-# > Schweinefleisch, Knoblauch
-#
-# Pizza Funghi mit Champignons, Zwiebeln und Mais
-# > Knoblauch
-#
-# Pizza Bombay mit Hähnchenfleisch, Ananas und Currycreme
-# > Knoblauch
-#
-# Pasta: Frischkäse-Kräutersoße
-# > kein Fleisch
-#
-# Pasta: Zigeunersoße
-# > Schweinefleisch, Rindfleisch, Knoblauch
-#
-# Auflauf: Kartoffel-Bohnenauflauf
-# > -
+sub test_get_offering($$);
+sub test_filtering($$@);
+
+=item B<meal scrapping>
+
+Tests to check the extraction/scrapping of the meals from the HTML
+resources.
+
+=cut
+
+test_get_offering(0,0);
+test_get_offering(1,1);
+test_get_offering(3,2);
+
+=item B<meal filtering>
+
+Tests to ensure that the filters are applied in the right order.
+
+=cut
+
+test_filtering(0, 0,
+	'Hacksteak mit Bratensoße, buntem Gemüse und Petersilienkartoffeln',
+	'Drei Kartoffel-Frischkäsetaschen mit buntem Gemüse',
+	[ name => qr/steak/i, POSITIVE ],
+	[ name => qr/kartoffel-frischkäsetaschen/i, POSITIVE ]
+);
+test_filtering(1, 1,
+	'Wok & Grill: Rückensteak vom Schwein mit Orangen-Pfeffersoße',
+	[ name => qr/steak/i, POSITIVE ],
+	[ name => qr/frikadelle/i, POSITIVE ],
+	[ name => qr/tofu/i, NEGATIVE ]
+);
+test_filtering(3, 2,
+	'Hackfleischbällchen in Kapernsoße mit Möhrengemüse, dazu Reis oder Petersilienkartoffeln',
+	'Schweinskammsteak Zigeuner Art mit Erbsen und Pommes frites',
+	'Hausgemachte frische Pasta, heute Linguine Carbonara',
+	[ name => qr/mie nudeln/i, NEGATIVE ],
+	[ name => qr/^pasta/i, NEGATIVE ],
+	[ name => qr/^pizza/i, NEGATIVE ],
+	[ name => qr/^auflauf/i, NEGATIVE ],
+	[ ingredients => qr/kein Fleisch/i, NEGATIVE ]
+);
+
+=back
+
+=head2 TEST-METHODS
+
+=over 4
+
+=item B<test_get_offering>
+
+Expects the day and the week of the offering to be tested. The offering
+is requested from the mensa and compared with the expected one which is
+automatically got from the day and week parameter.
+
+=cut
+
+sub test_get_offering($$) {
+	my ($day, $week) = (shift, shift);
+	my %offering;
+	{
+		no strict 'refs';
+		%offering = %{__PACKAGE__."::w$week"."d$day"};
+	}
+	my @offering = keys %offering;
+	return unless @offering;
+	subtest("[get_offering] of day $day in week $week" => sub {
+			plan(tests => 2 * scalar @offering);
+			my @meals = $mensa->get_offering($day, $week);
+			for (@meals) {
+				my $name = $_->name;
+				ok($name ~~ @offering, "meal is an expected one");
+				is_deeply([ $_->ingredients ], $offering{$name},
+						"all expected ingredients given");
+			}
+	});
+}
+
+=item B<test_filtering>
+
+Acceps the day and the week and a list of (1) expected meals and
+(2) anonymous arrays which contain the criterion, the regex and the
+positive/negative-flag. The filters will be added to the mensa, then
+the offering is requested and the obtained meals are checked for
+their expectation.
+
+=cut
+
+sub test_filtering($$@) {
+	my ($day, $week) = (shift, shift);
+	my ($regexes, @offering) = 0;
+	for (@_) {
+		if (ref eq 'ARRAY') {
+			my ($criterion, $regex, $negative) = @{$_};
+			$mensa->create_filter($criterion, $regex, $negative);
+			$regexes++;
+		} else {
+			push @offering, $_;
+		}
+	}
+	subtest("[get_offering] filtered with $regexes regexes" => sub {
+			plan(tests => scalar @offering);
+			my @meals = $mensa->get_offering($day, $week);
+			for (@meals) {
+				my $name = $_->name;
+				ok($name ~~ @offering, "meal is an expected one");
+			}
+	});
+	$mensa->reset_filters();
+}
+
+=back
+
+=head1 TODOs
+
+=over 4
+
+=item check different filter cases/levels
+
+=back
+
+=cut
 

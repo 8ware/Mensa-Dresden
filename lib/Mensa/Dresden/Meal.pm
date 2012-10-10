@@ -13,6 +13,19 @@ meal-related information
 
   use Mensa::Dresden::Meal;
 
+  $meal_xml = XML::LibXML->load_xml(string => <<XML);
+  <?xml version="1.0" encoding="UTF-8" ?>
+  <offering>
+   	  <mensa name="$mensa_name">
+          <meal url="$url">
+              <name>$name</name>
+              <ingredient>$ingredient_1</ingredient>
+              <ingredient>$ingredient_2</ingredient>
+          </meal>
+      </mensa>
+  </offering>
+  XML
+
   $meal = Mensa::Dresden::Meal->new($meal_xml);
 
 =head1 DESCRIPTION
@@ -23,7 +36,8 @@ is applicable to be filtered.
 
 =head2 EXPORT
 
-None by default.
+None by default. The C<all>-tag imports the ingredient-constants
+(see section CONSTANTS).
 
 =cut
 
@@ -32,7 +46,7 @@ require Exporter;
 our @ISA = qw(Exporter);
 
 our %EXPORT_TAGS = ( 'all' => [ qw(
-	
+	PORK BEEF VEGETARIAN ALCOHOL GARLIC VEGAN
 ) ] );
 
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
@@ -45,19 +59,53 @@ use Fcntl 'SEEK_SET';
 use XML::LibXML;
 use XML::LibXSLT;
 
-#
-# The possible ingredients.
-#
-my %INGREDIENTS = (
-	"Menü enthält Schweinefleisch" => 'PORK',
-	"Menü enthält Rindfleisch" => 'BEEF',
-	"Menü enthält kein Fleisch" => 'VEGETARIAN',
-	"Menü enthält Alkohol" => 'ALCOHOL',
-	"Menü enthält Knoblauch" => 'GARLIC',
-	"Menü ist vegan" => 'VEGAN'
-);
+=head2 CONSTANTS
 
-use subs qw(_validate _get_name _get_ingredients);
+Following constants can be used to filter the meals.
+
+=over 4
+
+=item B<PORK>
+
+Constant indicating the meal contains pork.
+
+=item B<BEEF>
+
+Constant indicating the meal contains beef.
+
+=item B<VEGETARIAN>
+
+Constant indicating the meal is vegetarian.
+
+=item B<ALCOHOL>
+
+Constant indicating the meal contains alcohol.
+
+=item B<GARLIC>
+
+Constant indicating the meal contains garlic.
+
+=item B<VEGAN>
+
+Constant indicating the meal is vegan.
+
+=back
+
+=cut
+
+use constant {
+	PORK => 'Schweinefleisch',
+	BEEF => 'Rindfleisch',
+	VEGETARIAN => 'kein Fleisch',
+	ALCOHOL => 'Alkohol',
+	GARLIC => 'Knoblauch',
+	VEGAN => 'vegan'
+};
+
+
+my $schema = XML::LibXML::Schema->new(string => join ('', <DATA>));
+
+use subs qw(validate get_name get_ingredients);
 
 =head2 METHODS
 
@@ -73,12 +121,11 @@ from the given XML node.
 sub new {
 	my $class = shift;
 	my $xml = shift;
-#	_validate($xml);
-	my @ingredients = _get_ingredients($xml);
+#	validate($xml);
 	my $self = {
 		url => $xml->getAttribute('url'),
-		name => _get_name($xml),
-		ingredients => \@ingredients
+		name => get_name($xml),
+		ingredients => [ get_ingredients($xml) ]
 	};
 	return bless $self, $class;
 }
@@ -86,11 +133,8 @@ sub new {
 #
 # Validates the given XML against the schema.
 #
-sub _validate($) {
+sub validate($) {
 	my $xml = shift;
-	my $position = tell DATA;
-	my $schema = XML::LibXML::Schema->new(IO => *DATA);
-	seek DATA, $position, SEEK_SET;
 	eval { $schema->validate($xml) };
 	croak("No valid meal XML: $@") if $@;
 }
@@ -98,7 +142,7 @@ sub _validate($) {
 #
 # Extracts the text content from the given XML node.
 #
-sub _get_name($) {
+sub get_name($) {
 	my $xml = shift;
 	my ($element) = $xml->getChildrenByTagName('name');
 	return $element->textContent();
@@ -107,7 +151,7 @@ sub _get_name($) {
 #
 # Extracts all ingredients from the given XML node.
 #
-sub _get_ingredients($) {
+sub get_ingredients($) {
 	my $xml = shift;
 	return map {
 		$_->textContent()
@@ -193,34 +237,34 @@ at your option, any later version of Perl 5 you may have available.
 
 __DATA__
 <?xml version="1.0" encoding="UTF-8" ?>
-
-<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+<xs:schema
+		xmlns:xs="http://www.w3.org/2001/XMLSchema"
 		elementFormDefault="qualified"
 		version="0.1">
 
-		<xs:complexType name="Offering">
-			<xs:sequence>
-				<xs:element ref="mensa" maxOccurs="unbounded"/>
-			</xs:sequence>
-		</xs:complexType>
+	<xs:complexType name="Offering">
+		<xs:sequence>
+			<xs:element ref="mensa" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
 
-		<xs:complexType name="Mensa">
-			<xs:sequence>
-				<xs:element name="meal" type="Meal" minOccurs="0" maxOccurs="unbounded"/>
-			</xs:sequence>
-			<xs:attribute name="name" type="xs:string" use="required"/>
-		</xs:complexType>
+	<xs:complexType name="Mensa">
+		<xs:sequence>
+			<xs:element name="meal" type="Meal" minOccurs="0" maxOccurs="unbounded"/>
+		</xs:sequence>
+		<xs:attribute name="name" type="xs:string" use="required"/>
+	</xs:complexType>
 
-		<xs:complexType name="Meal">
-			<xs:sequence>
-				<xs:element name="name" type="xs:string"/>
-			</xs:sequence>
-			<xs:attribute name="url" type="xs:anyURL"/>
-		</xs:complexType>
+	<xs:complexType name="Meal">
+		<xs:sequence>
+			<xs:element name="name" type="xs:string"/>
+		</xs:sequence>
+		<xs:attribute name="url" type="xs:anyURI"/>
+	</xs:complexType>
 
-		<xs:element name="offering" type="Offering"/>
-		<xs:element name="mensa" type="Mensa"/>
-		<xs:element name="meal" type="Meal"/>
+	<xs:element name="offering" type="Offering"/>
+	<xs:element name="mensa" type="Mensa"/>
+	<xs:element name="meal" type="Meal"/>
 
 </xs:schema>
 

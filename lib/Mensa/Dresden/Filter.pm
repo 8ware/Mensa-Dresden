@@ -13,11 +13,13 @@ Mensa::Dresden::Filter - Utility-class to filter out meals
   use Mensa::Dresden::Filter ':all';
 
   $steak_filter = Mensa::Dresden::Filter->new(
-      NAME, qr/steak/i
+      name => qr/steak/i    # or
+  #   NAME, qr/steak/i      # no typos
   );
   
   $anti_vegan_filter = Mensa::Dresden::Filter->new(
-      INGREDIENTS, qr/vegan/, NEGATIVE
+      ingredients => qr/vegan/, NEGATIVE    # or
+  #   INGREDIENTS, qr/vegan/, NEGATIVE      # no typos
   );
 
 =head1 DESCRIPTION
@@ -48,6 +50,8 @@ our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 
 our $VERSION = '0.01';
 
+
+use Carp;
 
 =head2 CONSTANTS
 
@@ -104,8 +108,10 @@ is not interpolated twice.
 sub new {
 	my $class = shift;
 	my $criterion = shift;
+	croak("Unsupported criterion: $criterion")
+			unless $criterion eq NAME or $criterion eq INGREDIENTS;
 	my $regex = shift;
-	my $negative = shift || 0;
+	my $negative = shift || 0; # defined ?
 	my $self = {
 		criterion => $criterion,
 		regex => qr/$regex/i,

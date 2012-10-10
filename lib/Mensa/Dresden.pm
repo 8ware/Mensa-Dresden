@@ -12,12 +12,12 @@ Mensa::Dresden - Perl interface to receive offerings of Dresden's canteens
 
   use Mensa::Dresden ':all';
 
-  $steak_filter = create_filter(NAME, qr/steak/i);
-  $anti_tofu_filter = create_filter(NAME, qr/tofu/i, NEGATIVE);
+  $steak_filter = create_filter(name => qr/steak/i);
+  $anti_tofu_filter = create_filter(name => qr/tofu/i, NEGATIVE);
 
   $mensa = Mensa::Dresden->new('Alte Mensa', $steak_filter);
 
-  $mensa->create_filter(INGREDIENTS, qr/vegan/, NEGATIVE);
+  $antivegan = $mensa->create_filter(ingredients => qr/vegan/, NEGATIVE);
   $mensa->add_filter($anti_tofu_filter);
 
   @meals = $mensa->get_offering();
@@ -52,6 +52,7 @@ our %EXPORT_TAGS = (
 		MONDAY TUESDAY WEDNESDAY THURSDAY FRIDAY SATURDAY SUNDAY
 		THIS_WEEK NEXT_WEEK AFTERNEXT_WEEK
 		create_filter NAME INGREDIENTS POSITIVE NEGATIVE
+		PORK BEEF VEGETARIAN ALCOHOL GARLIC VEGAN
 	) ],
 	date => [ qw(
 		TODAY TOMORROW
@@ -60,6 +61,7 @@ our %EXPORT_TAGS = (
 	) ],
 	filter => [ qw(
 		create_filter NAME INGREDIENTS POSITIVE NEGATIVE
+		PORK BEEF VEGETARIAN ALCOHOL GARLIC VEGAN
 	) ]
 );
 
@@ -76,7 +78,7 @@ use XML::LibXML;
 use XML::LibXSLT;
 
 use Mensa::Dresden::Filter ':all';
-use Mensa::Dresden::Meal;
+use Mensa::Dresden::Meal ':all';
 
 =head2 CONSTANTS
 
@@ -94,7 +96,36 @@ The identifier for name-specific filters.
 
 =item B<INGREDIENTS>
 
-The identifier for ingredient-specific filters.
+The identifier for ingredient-specific filters. Following constants
+can be used to specify an ingredient-filter:
+
+=over 8
+
+=item B<PORK>
+
+Constant indicating the meal contains pork.
+
+=item B<BEEF>
+
+Constant indicating the meal contains beef.
+
+=item B<VEGETARIAN>
+
+Constant indicating the meal is vegetarian.
+
+=item B<ALCOHOL>
+
+Constant indicating the meal contains alcohol.
+
+=item B<GARLIC>
+
+Constant indicating the meal contains garlic.
+
+=item B<VEGAN>
+
+Constant indicating the meal is vegan.
+
+=back
 
 =item B<POSITIVE>
 
@@ -183,6 +214,10 @@ our %MENSAS = (
 );
 
 
+my $stylesheet = XML::LibXSLT->new->parse_stylesheet(
+	XML::LibXML->load_xml(IO => *DATA)
+);
+
 use subs qw(get_url fetch_html load_stylesheet filter filter_with);
 
 =head2 METHODS
@@ -245,13 +280,11 @@ sub get_offering(;$$) {
 	my $self = shift;
 	my $day = defined $_[0] ? shift : (localtime time)[6];
 	my $week = defined $_[0] ? shift : 0;
-	my @positive_filters = @{ $self->{p_filters} };
-	my @negative_filters = @{ $self->{n_filters} };
-	my $stylesheet = load_stylesheet();
+#	my $stylesheet = load_stylesheet();
 	my $url = get_url($week, $day);
 	my $html = fetch_html($url);
 	my $offering = $stylesheet->transform($html,
-		XML::LibXSLT::xpath_to_string(name => $self->{name})
+		XML::LibXSLT::xpath_to_string(name => $self->{name}),
 	);
 	my @meals;
 	for ($offering->getElementsByTagName('meal')) {
@@ -430,6 +463,8 @@ offering is requested a second time.
 
 =item extract the detail photo URL
 
+=item check for network-connection
+
 =back
 
 =head1 SEE ALSO
@@ -454,13 +489,15 @@ at your option, any later version of Perl 5 you may have available.
 
 __DATA__
 <?xml version="1.0"?>
-<xsl:stylesheet version="1.0"
+<xsl:stylesheet
 		xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
 		xmlns:fn="http://www.w3.org/2005/xpath-functions"
-		xmlns:x="http://www.w3.org/1999/xhtml">
+		xmlns:x="http://www.w3.org/1999/xhtml"
+		version="1.0">
 		<xsl:output method="xml" indent="yes" encoding="UTF-8" omit-xml-declaration="no"/>
 
 	<xsl:param name="name"/>
+	<xsl:variable name="base">http://www.studentenwerk-dresden.de/mensen/speiseplan/</xsl:variable>
 
 	<xsl:template match="/">
 		<xsl:element name="offering">
@@ -471,11 +508,19 @@ __DATA__
 						<xsl:value-of select="thead/tr/th[@class='text']"/>
 					</xsl:attribute>
 					<xsl:for-each select="tbody/tr">
-						<!--xsl:if test="not(fn:empty(td[@class='text']/a))"-->
 						<xsl:if test="string-length(td[@class='text']/a/@href) > 0">
 							<xsl:element name="meal">
 								<xsl:attribute name="url">
-									<xsl:value-of select="td[@class='text']/a/@href"/>
+									<xsl:variable name="detailURI" select="td[@class='text']/a/@href"/>
+									<!--xsl:value-of select="td[@class='text']/a/@href"/-->
+									<xsl:choose>
+										<xsl:when test="starts-with($detailURI, $base)">
+											<xsl:value-of select="$detailURI"/>
+										</xsl:when>
+										<xsl:otherwise>
+											<xsl:value-of select="concat($base, $detailURI)"/>
+										</xsl:otherwise>
+									</xsl:choose>
 								</xsl:attribute>
 								<xsl:element name="name">
 									<xsl:value-of select="td[@class='text']/a"/>
