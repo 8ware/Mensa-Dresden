@@ -5,8 +5,14 @@ use ExtUtils::MakeMaker;
 WriteMakefile(
     NAME              => 'Mensa::Dresden',
     VERSION_FROM      => 'lib/Mensa/Dresden.pm', # finds $VERSION
-    PREREQ_PM         => {}, # e.g., Module::Name => 1.1
+    PREREQ_PM         => {
+		'XML::LibXML' => 0,
+		'XML::LibXSLT' => 0,
+		'YAML::Tiny' => 0,
+	}, # e.g., Module::Name => 1.1
     ($] >= 5.005 ?     ## Add these new keywords supported since 5.005
       (ABSTRACT_FROM  => 'lib/Mensa/Dresden.pm', # retrieve abstract from module
-       AUTHOR         => '8ware <andydefrank@(none)>') : ()),
+       AUTHOR         => '8ware <8wared@googlemail.com>') : ()),
+	EXE_FILES => [ 'mensa' ],
 );
+

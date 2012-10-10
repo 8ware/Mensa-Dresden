@@ -13,6 +13,10 @@ To install this module type the following:
   make test
   make install
 
+To add auto-completion for this script, simply enter following command:
+
+  mensa --bash-completion >> ~/.bash_completion
+
 =head1 DEPENDENCIES
 
 The modules and the script require these other modules and libraries:
@@ -20,6 +24,10 @@ The modules and the script require these other modules and libraries:
   XML::LibXML
   XML::LibXSLT
   YAML::Tiny
+
+=head1 AUTHOR
+
+8ware, E<lt>8wared@googlemail.comE<gt>
 
 =head1 COPYRIGHT AND LICENCE
 

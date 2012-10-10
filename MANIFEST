@@ -1,6 +1,15 @@
 Changes
 Makefile.PL
 MANIFEST
-README
-t/Mensa-Dresden.t
+README.pod
+mensa
 lib/Mensa/Dresden.pm
+lib/Mensa/Dresden/Filter.pm
+lib/Mensa/Dresden/Meal.pm
+t/Mensa-Dresden.t
+t/Mensa-Dresden-Filter.t
+t/Mensa-Dresden-Meal.t
+t/res/w0-d0.html
+t/res/w1-d1.html
+t/res/w2-d3.html
+
