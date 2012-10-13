@@ -170,7 +170,7 @@ Represents the numbers for the current, next and after next week.
 
 use constant {
 	TODAY => (localtime time)[6],
-	TOMORROW => (localtime time)[6] +1 % 7,
+	TOMORROW => ((localtime time)[6] +1) % 7,
 
 	MONDAY => 1,
 	TUESDAY => 2,

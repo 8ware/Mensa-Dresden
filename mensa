@@ -89,6 +89,9 @@ my %options;
 		my $option = shift;
 		my $value = shift;
 		my ($criterion, $_) = split /=/, $value;
+		# if 'create_filter' dies script continue running, because Getopt
+		# is executing this subroutine
+		# TODO handle it explicitly, by 'eval' (?)
 		push @filters, create_filter($criterion => $_, s/^~\s*//);
 	},
 	'tomorrow|t' => \$tomorrow,
@@ -213,6 +216,14 @@ sub load_config() {
 		}
 	}
 }
+
+=head1 TODOs
+
+=over 4
+
+=item provide option to disable only mensarc-filters
+
+=back
 
 =head1 SEE ALSO
 
