@@ -32,6 +32,13 @@ to eliminate loathsome meals. The mensa-script which comes along with
 this distribution implements a simple command line interface to check
 the canteens offering.
 
+If the scalar C<$Mensa::Dresden::caching> is true, which is the
+default value, the fetched HTML resource is cached in the /tmp
+directory. This enhances the speed of the module which otherwise
+is dependent the network-speed. The benefit will appear as the
+offering is requested a second time. You may put a call of the
+mensa-script in your auto-start, to cache it immediately on start.
+
 =head2 EXPORT
 
 None by default, but there are several constants and some methods which can
@@ -213,12 +220,18 @@ our %MENSAS = (
 	'Mensa Kreuzgymnasium' => 20
 );
 
+our $CACHE_PATH = '/tmp/mensa';
+our $CACHE_EXT  = '.cache';
+sub CACHE($$) {
+	my ($week, $day) = @_;
+	return "$CACHE_PATH-$week$day$CACHE_EXT";
+}
 
-my $stylesheet = XML::LibXSLT->new->parse_stylesheet(
-	XML::LibXML->load_xml(IO => *DATA)
-);
+use subs qw(load_stylesheet get_url fetch_html filter filter_with);
 
-use subs qw(get_url fetch_html load_stylesheet filter filter_with);
+our $caching = 1;
+
+my $stylesheet = load_stylesheet();
 
 =head2 METHODS
 
@@ -280,12 +293,15 @@ sub get_offering(;$$) {
 	my $self = shift;
 	my $day = defined $_[0] ? shift : (localtime time)[6];
 	my $week = defined $_[0] ? shift : 0;
-#	my $stylesheet = load_stylesheet();
+
 	my $url = get_url($week, $day);
 	my $html = fetch_html($url);
+	$html->toFile(CACHE($week, $day), 1)
+			if $caching and not -f CACHE($week, $day);
 	my $offering = $stylesheet->transform($html,
 		XML::LibXSLT::xpath_to_string(name => $self->{name}),
 	);
+
 	my @meals;
 	for ($offering->getElementsByTagName('meal')) {
 		my $meal = Mensa::Dresden::Meal->new($_);
@@ -301,7 +317,8 @@ sub get_url($$) {
 	my ($week, $day) = @_;
 	croak("Not a valid value: week=$week") if $week < 0 or $week > 2;
 	croak("Not a valid value: day=$day") if $day < 0 or $day > 6;
-	return $URL . "w$week-d$day.html";
+	return $caching && -f CACHE($week, $day)
+			? 'file://' . CACHE($week, $day) : $URL . "w$week-d$day.html";
 }
 
 #
@@ -454,16 +471,11 @@ sub reset_filters() {
 
 =over 4
 
-=item provide caching mechanism
-
-If C<cache> is enabled the module will save the fetched html in a
-temp-directory to enhance the speed of the module which otherwise
-is dependent on the network-speed. The benefit will appear as the
-offering is requested a second time.
-
 =item extract the detail photo URL
 
 =item check for network-connection
+
+=item use namespace::clean to hide internals
 
 =back
 

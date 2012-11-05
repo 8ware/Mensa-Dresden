@@ -9,7 +9,7 @@ Mensa::Dresden::Test - test suite of the Mensa::Dresden module
 
 =cut
 
-use Test::More tests => 8;
+use Test::More tests => 9;
 BEGIN { use_ok('Mensa::Dresden', ':all') };
 
 use File::Basename;
@@ -25,6 +25,12 @@ offering is redirected to t/res, where three sample offerings are located.
 
 my $t_dir = abs_path dirname($0);
 $Mensa::Dresden::URL = "file://$t_dir/res/";
+
+mkdir "$t_dir/tmp" or die "Can't create directory $t_dir/tmp: $!"
+		unless -d "$t_dir/tmp";
+$Mensa::Dresden::CACHE_PATH = "$t_dir/tmp/mensa";
+
+$Mensa::Dresden::caching = 0;
 
 =head2 TEST-CASES
 
@@ -144,6 +150,36 @@ test_filtering(3, 2,
 	[ ingredients => qr/kein Fleisch/i, NEGATIVE ]
 );
 
+=item B<caching>
+
+Tests to check the caching mechanism.
+
+=cut
+
+subtest("test caching mechanism" => sub {
+		plan(tests => 6);
+
+		ok(! -f "$Mensa::Dresden::CACHE_PATH-00.cache",
+				"mensa cache for day 0 in week 0 does not exist");
+		ok(! -f "$Mensa::Dresden::CACHE_PATH-11.cache",
+				"mensa cache for day 1 in week 1 does not exist");
+		ok(! -f "$Mensa::Dresden::CACHE_PATH-23.cache",
+				"mensa cache for day 3 in week 2 does not exist");
+
+		$Mensa::Dresden::caching = 1;
+
+		$mensa->get_offering(0, 0);
+		$mensa->get_offering(1, 1);
+		$mensa->get_offering(3, 2);
+
+		ok(-f "$Mensa::Dresden::CACHE_PATH-00.cache",
+				"mensa cache for day 0 in week 0 exists after enabling");
+		ok(-f "$Mensa::Dresden::CACHE_PATH-11.cache",
+				"mensa cache for day 1 in week 1 exists after enabling");
+		ok(-f "$Mensa::Dresden::CACHE_PATH-23.cache",
+				"mensa cache for day 3 in week 2 exists after enabling");
+});
+
 =back
 
 =head2 TEST-METHODS
@@ -220,7 +256,14 @@ sub test_filtering($$@) {
 
 =item check different filter cases/levels
 
+=item implement test for XSL which uses real current HTML from the offerings
+      website to verify the validity of the stylesheet (maybe the structure
+	  of the canteen sites someday changes)
+
 =back
 
 =cut
+
+unlink <$t_dir/tmp/mensa-*.cache>;
+rmdir "$t_dir/tmp" or warn "Can't remove directory $t_dir/tmp: $!";
 

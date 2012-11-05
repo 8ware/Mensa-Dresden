@@ -223,6 +223,8 @@ sub load_config() {
 
 =item provide option to disable only mensarc-filters
 
+=item divide positive and negative filters into two YAML-sections
+
 =back
 
 =head1 SEE ALSO
