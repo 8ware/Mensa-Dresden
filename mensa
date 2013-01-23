@@ -29,6 +29,7 @@ the offering of Dresden's (and its environs) canteens.
 =cut
 
 use Getopt::Long;
+use List::MoreUtils 'uniq';
 use Mensa::Dresden ':all';
 use YAML::Tiny 'LoadFile';
 
@@ -118,7 +119,7 @@ HELP
 				(length == 1 ? '-' : '--') . $_
 			} split /\|/;
 		}
-		say "complete -W \"@word_list\" mensa";
+		print "@word_list";
 		exit;
 	}
 );
@@ -154,18 +155,17 @@ GetOptions(%options);
 while (my($name, $selected) = each %canteens) {
 	push @canteens, $name if $selected;
 }
-
-{	# remove dublicated canteens
-	my %tmp = map { $_ => 1 } @canteens;
-	@canteens = keys %tmp;
-}
+@canteens = uniq(@canteens);
 
 @filters = () if $no_filters;
+
+my $no_offering = 1;
 
 for my $name (@canteens) {
 	my $mensa = Mensa::Dresden->new($name, @filters);
 	my @meals = $mensa->get_offering($tomorrow ? TOMORROW : TODAY);
 	if (@meals) {
+		$no_offering = 0;
 		say "[ $name ]\n";
 		if ($details) {
 			say $_->to_string . "\n" for @meals;
@@ -174,6 +174,10 @@ for my $name (@canteens) {
 		}
 		print "\n";
 	}
+}
+
+if ($no_offering) {
+	say "No offering available for " . ($tomorrow ? 'tomorrow.' : 'today.' );
 }
 
 =head2 CONFIGURATION

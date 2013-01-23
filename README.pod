@@ -13,9 +13,10 @@ To install this module type the following:
   make test
   make install
 
-To add auto-completion for this script, simply enter following command:
+To add auto-completion for this script, simply add following command to
+your bash-completion (e.g. ~/.bash_completion):
 
-  mensa --bash-completion >> ~/.bash_completion
+  complete -W "$(mensa --bash-completion)" mensa
 
 =head1 DEPENDENCIES
 
