@@ -287,6 +287,23 @@ day and week is supposed while the current week is assumed if only the week
 parameter is omitted. After the offering was scrapped, the meals are filtered
 as follows:
 
+=over 0
+
+=item 1.
+
+Apply all positive filters to all meals, if at least one matches add
+the meal to the list of filtered ones.
+
+=item Apply all negative filters to the already filtered meals, if at least
+one does not match, remove the meal, i.e. don't add it.
+
+=item If no meals were left after step 1 and 2 apply all negative filters
+to all meals and add the meal only of if all filtern match
+
+=item If still no meals are left, return all meals.
+
+=back
+
 =cut
 
 sub get_offering(;$$) {

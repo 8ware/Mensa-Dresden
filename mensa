@@ -4,7 +4,7 @@ use strict;
 use warnings;
 
 use feature 'say';
-use encoding 'utf8';
+#use encoding 'utf8';
 
 =head1 NAME
 
@@ -88,6 +88,13 @@ my %options;
 	'filter|f=s' => sub {
 		my $option = shift;
 		my $value = shift;
+		if ($value =~ s/^--// || $value =~ s/^-//
+				and grep { grep { /$value/ } split /[|=]/ } keys %options) {
+			$value = (length $value == 1 ? '-' : '--') . $value;
+			unshift @ARGV, $value;
+			return;
+		}
+		return unless $value =~ /=/;
 		my ($criterion, $_) = split /=/, $value;
 		# if 'create_filter' dies script continue running, because Getopt
 		# is executing this subroutine
@@ -98,7 +105,7 @@ my %options;
 	'help|h' => sub {
 		print <<HELP;
 usage: mensa [-a|--all] [-d|--details] [-t|--tomorrow]
-             [-f|--filter name|ingredient=<regex>]
+             [-f|--filter name|ingredients=<regex>]
              [--neue-mensa|--alte-mensa|--mensa-reichenbachstrasse|
               --mensologie|--mensa-siedepunkt|--mensa-johannstadt|
               --mensa-blau|--biomensa-u-boot|--mensa-tellerrandt|
