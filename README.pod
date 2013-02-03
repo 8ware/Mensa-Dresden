@@ -22,6 +22,7 @@ your bash-completion (e.g. ~/.bash_completion):
 
 The modules and the script require these other modules and libraries:
 
+  List::MoreUtils
   XML::LibXML
   XML::LibXSLT
   YAML::Tiny

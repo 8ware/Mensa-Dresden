@@ -16,3 +16,5 @@ WriteMakefile(
 	EXE_FILES => [ 'mensa' ],
 );
 
+# TODO add 'copy bash-completion' to install-target
+

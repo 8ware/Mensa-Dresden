@@ -1,10 +1,10 @@
-#! /usr/local/bin/perl
+#! /usr/bin/env perl
 
 use strict;
 use warnings;
 
 use feature 'say';
-#use encoding 'utf8';
+use encoding 'utf8';
 
 =head1 NAME
 
@@ -31,9 +31,7 @@ the offering of Dresden's (and its environs) canteens.
 use Getopt::Long;
 use List::MoreUtils 'uniq';
 use Mensa::Dresden ':all';
-use YAML::Tiny 'LoadFile';
-
-use subs qw(load_config);
+use Mensa::Dresden::Utils ':all';
 
 my @canteens;
 my @filters;
@@ -41,7 +39,7 @@ my $no_filters = 0;
 my $details = 0;
 my $tomorrow = 0;
 
-load_config();
+load_config("$ENV{HOME}/.mensarc", @canteens, @filters);
 
 =head2 OPTIONS
 
@@ -49,7 +47,7 @@ load_config();
 
 =item B<-a, --all>
 
-Deaktivates all filters and show every meal.
+Deactivates all filters and show every meal.
 
 =item B<-d, --details>
 
@@ -73,14 +71,14 @@ Delivers the offering of tomorrow.
 
 Shows a short usage-message (like the SYNOPSIS).
 
-=item B<--bash-completion>
-
-This experimental option prints out the bash-completion for this script.
-Type C<mensa --bash-completion E<gt>E<gt> ~/.bash_completion> to add
-auto-complete functionality for it. B<NOTE:> This option may be removed
-in future versions.
-
 =cut
+
+#=item B<--bash-completion>
+#
+#This experimental option prints out the bash-completion for this script.
+#Type C<mensa --bash-completion E<gt>E<gt> ~/.bash_completion> to add
+#auto-complete functionality for it. B<NOTE:> This option may be removed
+#in future versions.
 
 my %options;
 %options = (
@@ -158,10 +156,12 @@ for (keys %Mensa::Dresden::MENSAS) {
 }
 
 GetOptions(%options);
-
 while (my($name, $selected) = each %canteens) {
 	push @canteens, $name if $selected;
 }
+
+push @canteens, parse_args();
+
 @canteens = uniq(@canteens);
 
 @filters = () if $no_filters;
@@ -183,7 +183,9 @@ for my $name (@canteens) {
 	}
 }
 
-if ($no_offering) {
+unless (@canteens) {
+	say "No canteen was specified.";
+} elsif ($no_offering) {
 	say "No offering available for " . ($tomorrow ? 'tomorrow.' : 'today.' );
 }
 
@@ -211,23 +213,6 @@ The second section contains all filters which were applied to each meal to
 determine if it's retained or not. A tilde leading the regex indicates that
 it must not match the expression (negative filter).
 
-=cut
-
-sub load_config() {
-	my $path = "$ENV{HOME}/.mensarc";
-	return unless -f $path;
-
-	my ($canteens, $filters) = LoadFile($path);
-	@canteens = @{$canteens} if defined $canteens;
-
-	return unless defined $filters;
-	while (my ($criterion, $regexes) = each $filters) {
-		for (@{$regexes}) {
-			push @filters, create_filter($criterion => $_, s/^~\s*//);
-		}
-	}
-}
-
 =head1 TODOs
 
 =over 4
@@ -240,7 +225,7 @@ sub load_config() {
 
 =head1 SEE ALSO
 
-http://www.studentenwerk-dresden.de/mensen/speiseplan/
+http://www.studentenwerk-dresden.de/mensen/speiseplan
 
 =head1 AUTHOR
 
