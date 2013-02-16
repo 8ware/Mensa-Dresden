@@ -32,6 +32,9 @@ use Getopt::Long;
 use List::MoreUtils 'uniq';
 use Mensa::Dresden ':all';
 use Mensa::Dresden::Utils ':all';
+use Text::Wrap 'wrap';
+
+$Text::Wrap::columns = 80;
 
 my @canteens;
 my @filters;
@@ -177,7 +180,7 @@ for my $name (@canteens) {
 		if ($details) {
 			say $_->to_string . "\n" for @meals;
 		} else {
-			say $_->name for @meals;
+			say wrap("  * ", "    ", $_->name) for @meals;
 		}
 		print "\n";
 	}
