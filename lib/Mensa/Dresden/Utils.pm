@@ -10,7 +10,7 @@ Mensa::Dresden::Utils
 
 =head1 SYNOPSIS
 
-  use Mensa::Dresden::Utils::Utils ':all';
+  use Mensa::Dresden::Utils ':all';
 
 =head1 DESCRIPTION
 
