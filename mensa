@@ -129,7 +129,9 @@ HELP
 		}
 		print "@word_list";
 		exit;
-	}
+	},
+
+	'html=s' => \my $html,
 );
 
 =item B<--neue-mensa, --alte-mensa, --mensa-reichenbachstrasse,
@@ -161,6 +163,21 @@ for (keys %Mensa::Dresden::MENSAS) {
 GetOptions(%options);
 while (my($name, $selected) = each %canteens) {
 	push @canteens, $name if $selected;
+}
+
+if (defined $html) {
+	if (-f $html) {
+		eval "use Cwd 'abs_path'";
+		no strict 'refs';
+		no warnings 'redefine';
+		*{'Mensa::Dresden::CACHE'} = sub ($$) {
+			return abs_path($html);
+		};
+		use warnings 'redefine';
+		use strict 'refs';
+	} else {
+		die "not a valid HTML file: $html";
+	}
 }
 
 push @canteens, parse_args();
