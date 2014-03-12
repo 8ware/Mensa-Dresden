@@ -4,6 +4,8 @@ use 5.014002;
 use strict;
 use warnings;
 
+use experimental 'smartmatch';
+
 =head1 NAME
 
 Mensa::Dresden - Perl interface to receive offerings of Dresden's canteens

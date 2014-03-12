@@ -4,7 +4,7 @@ use strict;
 use warnings;
 
 use feature 'say';
-use encoding 'utf8';
+#use encoding 'utf8';
 
 =head1 NAME
 
@@ -97,7 +97,7 @@ my %options;
 			return;
 		}
 		return unless $value =~ /=/;
-		my ($criterion, $_) = split /=/, $value;
+		(my $criterion, local $_) = split /=/, $value;
 		# if 'create_filter' dies script continue running, because Getopt
 		# is executing this subroutine
 		# TODO handle it explicitly, by 'eval' (?)
