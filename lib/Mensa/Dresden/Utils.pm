@@ -24,6 +24,7 @@ our @ISA = qw(Exporter);
 
 our %EXPORT_TAGS = ( 'all' => [ qw(
 	load_config parse_args
+	parse_html
 ) ] );
 
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
@@ -34,6 +35,9 @@ our $VERSION = '0.01';
 use Carp;
 use YAML::Tiny 'LoadFile';
 require Mensa::Dresden;
+
+use LWP::UserAgent;
+use HTTP::Request;
 
 
 =head2 METHODS
@@ -100,6 +104,24 @@ sub umlauts2ascii(_) {
 	s/ü/ue/g;
 	s/ß/ss/g;
 	return $_;
+}
+
+sub parse_html($) {
+	my $url = shift;
+	my $agent = LWP::UserAgent->new();
+	my $request = HTTP::Request->new(GET => $url);
+	my $response = $agent->request($request);
+	croak("Received '".$response->status_line()."'")
+			unless $response->is_success();
+	my $html = XML::LibXML->load_html(
+		string => $response->content(),
+		load_ext_dtd => 0,
+		expand_entities => 1,
+		recover => 2,
+		suppress_warnings => 1,
+		suppress_errors => 1
+	);
+	return $html;
 }
 
 =back

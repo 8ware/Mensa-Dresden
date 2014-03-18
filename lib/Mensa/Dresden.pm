@@ -86,6 +86,7 @@ use XML::LibXSLT;
 
 use Mensa::Dresden::Filter ':all';
 use Mensa::Dresden::Meal ':all';
+use Mensa::Dresden::Utils 'parse_html';
 
 =head2 CONSTANTS
 
@@ -196,7 +197,7 @@ use constant {
 #
 # The base URL of the canteen offerings.
 #
-our $URL = 'http://www.studentenwerk-dresden.de/mensen/speiseplan/';
+our $URL = 'http://www.studentenwerk-dresden.de/mensen/speiseplan';
 
 #
 # The canteen-names with their appropriate mensa-IDs.
@@ -344,19 +345,7 @@ sub get_url($$) {
 #
 sub fetch_html($) {
 	my $url = shift;
-	my $agent = LWP::UserAgent->new();
-	my $request = HTTP::Request->new(GET => $url);
-	my $response = $agent->request($request);
-	croak("Received ".$response->status_line()) unless $response->is_success();
-	my $html = XML::LibXML->load_html(
-		string => $response->content(),
-		load_ext_dtd => 0,
-		expand_entities => 1,
-		recover => 2,
-		suppress_warnings => 1,
-		suppress_errors => 1
-	);
-	return $html;
+	return parse_html($url);
 }
 
 #
