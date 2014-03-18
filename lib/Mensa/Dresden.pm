@@ -338,7 +338,7 @@ sub get_url($$) {
 	croak("Not a valid value: week=$week") if $week < 0 or $week > 2;
 	croak("Not a valid value: day=$day") if $day < 0 or $day > 6;
 	return $caching && -f CACHE($week, $day)
-			? 'file://' . CACHE($week, $day) : $URL . "w$week-d$day.html";
+			? 'file://' . CACHE($week, $day) : $URL . "/w$week-d$day.html";
 }
 
 #
