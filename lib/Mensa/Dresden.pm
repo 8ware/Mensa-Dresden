@@ -4,6 +4,8 @@ use 5.014002;
 use strict;
 use warnings;
 
+use experimental 'smartmatch';
+
 =head1 NAME
 
 Mensa::Dresden - Perl interface to receive offerings of Dresden's canteens
@@ -309,8 +311,8 @@ to all meals and add the meal only of if all filtern match
 
 sub get_offering(;$$) {
 	my $self = shift;
-	my $day = defined $_[0] ? shift : (localtime time)[6];
-	my $week = defined $_[0] ? shift : 0;
+	my $day = defined $_[0] ? shift : TODAY;
+	my $week = defined $_[0] ? shift : THIS_WEEK;
 
 	my $url = get_url($week, $day);
 	my $html = fetch_html($url);

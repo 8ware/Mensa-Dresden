@@ -4,7 +4,7 @@ use strict;
 use warnings;
 
 use feature 'say';
-use encoding 'utf8';
+#use encoding 'utf8';
 
 =head1 NAME
 
@@ -97,7 +97,7 @@ my %options;
 			return;
 		}
 		return unless $value =~ /=/;
-		my ($criterion, $_) = split /=/, $value;
+		(my $criterion, local $_) = split /=/, $value;
 		# if 'create_filter' dies script continue running, because Getopt
 		# is executing this subroutine
 		# TODO handle it explicitly, by 'eval' (?)
@@ -129,7 +129,9 @@ HELP
 		}
 		print "@word_list";
 		exit;
-	}
+	},
+
+	'html=s' => \my $html,
 );
 
 =item B<--neue-mensa, --alte-mensa, --mensa-reichenbachstrasse,
@@ -161,6 +163,21 @@ for (keys %Mensa::Dresden::MENSAS) {
 GetOptions(%options);
 while (my($name, $selected) = each %canteens) {
 	push @canteens, $name if $selected;
+}
+
+if (defined $html) {
+	if (-f $html) {
+		eval "use Cwd 'abs_path'";
+		no strict 'refs';
+		no warnings 'redefine';
+		*{'Mensa::Dresden::CACHE'} = sub ($$) {
+			return abs_path($html);
+		};
+		use warnings 'redefine';
+		use strict 'refs';
+	} else {
+		die "not a valid HTML file: $html";
+	}
 }
 
 push @canteens, parse_args();
